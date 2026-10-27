@@ -1,32 +1,211 @@
 // One consistent category icon set. Explicit categories take precedence;
 // product-name matching is a fallback and does not rewrite source categories.
-const categoryIcons={
- bread:{label:'Ekmek & unlu mamuller',path:'M5 10c-2 0-3-2-3-4s2-4 5-4h10c3 0 5 2 5 4s-1 4-3 4v10a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2Z M8 6h8 M9 11v6 M15 11v6'},
- drink:{label:'İçecekler',path:'M9 2h6v5l3 4v9a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2v-9l3-4Z M9 5h6 M6 13h12 M6 18h12'},
- dairy:{label:'Süt & süt ürünleri',path:'M6 8l3-6h7l3 6v13H6Z M6 8h13 M9 2l3 6v13 M12 8l4-6 M15 12h2 M15 16h2'},
- produce:{label:'Meyve & sebze',path:'M12 8c-5-4-10 0-9 6s6 10 9 7c3 3 8-1 9-7s-4-10-9-6Z M12 8V4 M12 5c1-4 5-4 6-3-1 3-3 4-6 3'},
- clean:{label:'Temizlik ürünleri',path:'M8 8h8l3 6v7H5v-7Z M9 8V5h6v3 M9 5V2h8l3 2h-5 M9 14h6v4H9Z'},
- snack:{label:'Atıştırmalıklar',path:'M5 3l3 1 4-1 4 1 3-1v18l-3-1-4 1-4-1-3 1Z M8 8h8 M15 14a3 3 0 1 1-6 0 3 3 0 0 1 6 0 M11 13h.01 M13 15h.01'},
- tobacco:{label:'Tütün ürünleri',path:'M5 6h14v15H5Z M5 10h14 M8 6V2h3v4 M13 6V2h3v4 M8 14h8 M8 17h5'},
- other:{label:'Diğer ürünler',path:'M3 7l9-4 9 4v12l-9 4-9-4Z M3 7l9 4 9-4 M12 11v12 M8 5l9 4'}
+const categoryIcons = {
+  bread: {
+    label: "Ekmek & unlu mamuller",
+    path: "M5 10c-2 0-3-2-3-4s2-4 5-4h10c3 0 5 2 5 4s-1 4-3 4v10a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2Z M8 6h8 M9 11v6 M15 11v6",
+  },
+  drink: {
+    label: "İçecekler",
+    path: "M9 2h6v5l3 4v9a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2v-9l3-4Z M9 5h6 M6 13h12 M6 18h12",
+  },
+  dairy: {
+    label: "Süt & süt ürünleri",
+    path: "M6 8l3-6h7l3 6v13H6Z M6 8h13 M9 2l3 6v13 M12 8l4-6 M15 12h2 M15 16h2",
+  },
+  produce: {
+    label: "Meyve & sebze",
+    path: "M12 8c-5-4-10 0-9 6s6 10 9 7c3 3 8-1 9-7s-4-10-9-6Z M12 8V4 M12 5c1-4 5-4 6-3-1 3-3 4-6 3",
+  },
+  clean: { label: "Temizlik ürünleri", path: "M8 8h8l3 6v7H5v-7Z M9 8V5h6v3 M9 5V2h8l3 2h-5 M9 14h6v4H9Z" },
+  snack: {
+    label: "Atıştırmalıklar",
+    path: "M5 3l3 1 4-1 4 1 3-1v18l-3-1-4 1-4-1-3 1Z M8 8h8 M15 14a3 3 0 1 1-6 0 3 3 0 0 1 6 0 M11 13h.01 M13 15h.01",
+  },
+  tobacco: { label: "Tütün ürünleri", path: "M5 6h14v15H5Z M5 10h14 M8 6V2h3v4 M13 6V2h3v4 M8 14h8 M8 17h5" },
+  other: { label: "Diğer ürünler", path: "M3 7l9-4 9 4v12l-9 4-9-4Z M3 7l9 4 9-4 M12 11v12 M8 5l9 4" },
 };
-function normalized(s){return String(s||'').toLocaleLowerCase('tr').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/ı/g,'i')}
-function categoryKey(p){let c=normalized(p.category||p.group),n=normalized(p.name);if(/tutun|sigara/.test(c))return 'tobacco';if(/sut|peynir|yogurt|mandira/.test(c))return 'dairy';if(/ekmek|unlu|firin/.test(c))return 'bread';if(/icecek|mesrubat|su urunleri/.test(c))return 'drink';if(/meyve|sebze|manav/.test(c))return 'produce';if(/temiz|deterjan/.test(c))return 'clean';if(/atistir|biskuvi|cikolata/.test(c))return 'snack';if(/sigara|tutun|marlboro|winston|parliament|muratti|chesterfield|kent blue|kent switch|camel|lark|ld blue|pall mall/.test(n))return 'tobacco';if(/biskuvi|cikolata|gofret|cips|kraker|kek/.test(n))return 'snack';if(/sut|peynir|yogurt|tereyag|kaymak|kefir|ayran/.test(n))return 'dairy';if(/ekmek|pogaca|simit|baget/.test(n))return 'bread';if(/cola|kola|fanta|gazoz|icecek|meyve suyu|soda|maden suyu|cay|kahve|^su\b/.test(n))return 'drink';if(/deterjan|sabun|camasir|bulasik|yumusatici|sampuan/.test(n))return 'clean';if(/biskuvi|cikolata|gofret|cips|kraker|kek/.test(n))return 'snack';if(/elma|armut|muz|domates|salatalik|patates/.test(n))return 'produce';return 'other'}
-function categorySvg(key){let c=categoryIcons[key]||categoryIcons.other;return `<svg viewBox="0 0 24 25" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${c.path}"/></svg>`}
-function productMark(p){return `<span class="productIcon" title="${esc(categoryIcons[categoryKey(p)].label)}">${categorySvg(categoryKey(p))}</span>`}
-function productLabel(p){return `<div class="productLabel">${productMark(p)}<div><strong>${esc(p.name)}</strong><small>${esc(p.category||categoryIcons[categoryKey(p)].label)}${p.barcode?' · '+esc(p.barcode):''}</small></div></div>`}
-function categoryLegend(){return `<div class="categoryLegend" aria-label="Kategori simgeleri">${['bread','drink','dairy','tobacco','clean','snack'].map(k=>`<span><span class="productIcon">${categorySvg(k)}</span>${esc(categoryIcons[k].label)}</span>`).join('')}</div>`}
-table=function(list,edit=false){return `<div class="tablewrap" tabindex="0" aria-label="Ürün stok tablosu"><table><thead><tr><th>Ürün</th><th>Mevcut stok</th><th>Alt sınır</th><th>Durum</th><th>İşlem</th></tr></thead><tbody>${list.map(p=>`<tr><td>${productLabel(p)}</td><td>${p.stock} adet</td><td>${p.min} adet</td><td><span class="pill ${p.stock>=p.min?'ok':''}">${p.stock>=p.min?'Yeterli':'Düşük stok'}</span></td><td><button class="link" onclick="editStock(${products.indexOf(p)})">${edit?'Stok güncelle':p.stock<p.min?'Stok ekle →':'Görüntüle →'}</button></td></tr>`).join('')}</tbody></table></div>`};
-const styledAddProduct=addProduct;addProduct=function(b=''){styledAddProduct(b);let form=document.querySelector('#mbody form'),field=form.querySelector('[name="category"]');field.setAttribute('list','productCategories');form.insertAdjacentHTML('beforeend',`<datalist id="productCategories">${Object.values(categoryIcons).map(c=>`<option value="${esc(c.label)}">`).join('')}</datalist>`);field.closest('label').insertAdjacentHTML('afterend','<div class="iconPreview" id="categoryPreview"></div>');let update=()=>{let p={name:form.querySelector('[name="name"]').value,category:field.value};document.getElementById('categoryPreview').innerHTML=productMark(p)+`<div><strong style="font-size:12px">${esc(categoryIcons[categoryKey(p)].label)}</strong><p class="muted">Kategori simgesi otomatik seçilir.</p></div>`};field.addEventListener('input',update);form.querySelector('[name="name"]').addEventListener('input',update);update()};
-const styledScan=scanBarcode;scanBarcode=function(e){styledScan(e);let result=document.querySelector('#scanResult .note');if(result){let barcode=result.textContent.split('Barkod: ').at(-1).trim(),p=products.find(p=>p.barcode===barcode);if(p)result.insertAdjacentHTML('afterbegin',productMark(p))}};
-let endSort='quantity';const exampleDayItems=[{name:'Ekmek',category:'Ekmek & unlu mamuller',q:100,total:1500},{name:'Çay · 500 g',category:'İçecekler',q:60,total:7800},{name:'Süt · 1 L',category:'Süt & süt ürünleri',q:50,total:2250},{name:'Ayçiçek yağı · 1 L',category:'Temel gıda',q:40,total:3400},{name:'Yumurta · 30’lu',category:'Temel gıda',q:30,total:4500},{name:'Diğer ürünler',category:'Diğer ürünler',q:6,total:13000}];
-function dayItems(){if(!salesData)return exampleDayItems.map(p=>({...p}));let day=salesData.days[salesDate];return Object.entries(day.items).map(([barcode,it])=>({...salesData.products[barcode],barcode,q:it.q,total:it.total}))}
-function rankedItems(sort=endSort){return dayItems().sort((a,b)=>(sort==='revenue'?b.total-a.total:b.q-a.q)||a.name.localeCompare(b.name,'tr'))}
-function topSellers(compact=false){let rows=rankedItems().slice(0,compact?5:10),all=dayItems(),revenue=all.reduce((s,p)=>s+p.total,0),mode=salesData?'Gerçek satış':'Örnek veri',date=salesData?ds(salesDate):'Örnek gün';return `<section class="card panel endOfDay"><div class="paneltop"><div><div class="eyebrow">Gün sonu raporu</div><h2>En çok satılan ürünler</h2><p class="muted">${date} · İlk ${Math.min(all.length,compact?5:10)} ürün · ${mode}</p></div><div class="endToolbar">${compact?'<button class="softLink" onclick="navigate(\'Gün sonu\')">Gün sonunu aç →</button>':`<label>Sıralama<select aria-label="En çok satılanları sırala" onchange="endSort=this.value;render()"><option value="quantity" ${endSort==='quantity'?'selected':''}>Satılan miktara göre</option><option value="revenue" ${endSort==='revenue'?'selected':''}>Satış tutarına göre</option></select></label>`}</div></div><div class="tablewrap" tabindex="0" aria-label="En çok satılan ürünler tablosu"><table class="endTable"><thead><tr><th style="width:40px">Sıra</th><th>Ürün</th><th class="numeric">Satılan miktar</th><th class="numeric">Satış tutarı</th><th class="numeric">Ürün gelir payı</th></tr></thead><tbody>${rows.length?rows.map((p,i)=>{let share=revenue?p.total/revenue*100:0;return `<tr><td><span class="rank ${i===0?'first':''}">${String(i+1).padStart(2,'0')}</span></td><td>${productLabel(p)}</td><td class="numeric">${fmt(p.q)}</td><td class="numeric amountStrong">${money(p.total)}</td><td class="numeric"><div class="share"><span class="shareTrack"><span class="shareFill" style="display:block;width:${Math.min(100,share)}%"></span></span><span>%${new Intl.NumberFormat('tr-TR',{maximumFractionDigits:1}).format(share)}</span></div></td></tr>`}).join(''):'<tr><td colspan="5" class="empty">Bu gün için uygun ürün satışı bulunamadı.</td></tr>'}</tbody></table></div><div class="tableFoot"><span>${salesData?'Hesap kayıtları ve negatif işlemler ürün sıralamasına alınmaz.':'Örnek ürünlerdir. Gerçek sıralama için satış raporunuzu yükleyin.'}</span><span>Gelir payı: listedeki tüm uygun ürünlerin toplamına göre.</span></div><p class="dayEndNote">Miktarlar ürünün rapor birimindedir. Adet ve kilogram gibi farklı birimler varsa miktar sıralaması doğrudan karşılaştırılamaz; satış tutarına göre sıralamayı kullanabilirsiniz.</p></section>`}
-function dayEnd(){let items=rankedItems('quantity'),revenue=dayItems().reduce((s,p)=>s+p.total,0),d=salesData?salesData.days[salesDate]:null;return title('Gün sonu','İşletmenizin günlük performansı, tek bir bakışta.',`<button onclick="navigate('Raporlar')">↓ Satış raporu yükle</button>`)+`<div class="reportBanner">${ico('report')}<span>${salesData?'Yüklenen rapordan hesaplandı. Bu bir geçmiş gün özetidir; canlı kasa bağlantısı yok.':'Örnek gün sonu raporu. Gerçek verilerinizi yüklediğinizde tablo otomatik güncellenir.'}</span></div>${salesData?`<label class="field" style="max-width:260px">Rapor günü<select aria-label="Gün sonu rapor tarihi" onchange="salesDate=this.value;render()">${Object.keys(salesData.days).sort().reverse().map(dt=>`<option value="${dt}" ${dt===salesDate?'selected':''}>${ds(dt)}</option>`).join('')}</select></label>`:''}<div class="endSummary"><div class="card"><p class="muted">${salesData?'Seçilen günün':'Örnek günün'} cirosu</p><div class="value">${money(d?d.total:32450)}</div><span class="muted">${d?'TOPLAM alanı · Hesap ve negatif işlemler dahil':'Örnek satış tutarı'}</span></div><div class="card"><p class="muted">Satılan ürün çeşidi</p><div class="value">${fmt(items.length)}</div><span class="muted">Pozitif satış içeren ${salesData?'barkodlar':'ürün / ürün grupları'}</span></div><div class="card"><p class="muted">Ürün sıralamasındaki satış tutarı</p><div class="value">${money(revenue)}</div><span class="muted">Hesap ve negatif işlemler hariç</span></div></div>${topSellers()}<div class="insight"><strong>Asistanla paylaşım</strong><p class="muted">Bu özet, otomasyon bağlandığında gün sonu mesajına eklenebilir. Şu anda otomatik gönderim yok.</p><button class="link" onclick="navigate('Asistan')">Bildirim tercihlerini aç →</button></div>`}
-const styledAssistant=assistant;assistant=function(){return `<section class="card panel" style="margin-bottom:22px"><div class="paneltop"><div><div class="eyebrow">Günlük özet</div><h2>Bugün en çok ne satıldı?</h2><p class="muted">Ürünler, miktarlar ve satış tutarları gün sonu tablosunda.</p></div><button class="primary" onclick="navigate('Gün sonu')">Gün sonunu incele →</button></div></section>`+styledAssistant()};
-const existingOverview=overview;overview=function(){return existingOverview()+topSellers(true)};
-if(!pages.some(([p])=>p==='Gün sonu'))pages.splice(3,0,['Gün sonu','report']);
-const iconRender=render;render=function(){if(page==='Gün sonu'){// Reuse navigation, header and data restoration without requiring a new router.
- let selected=page;page='Raporlar';iconRender();page=selected;document.getElementById('crumb').textContent=selected;document.getElementById('content').innerHTML=dayEnd();document.getElementById('nav').innerHTML=pages.map(([p,i])=>`<button class="${page===p?'active':''}" onclick="navigate('${p}')">${ico(i)}<span>${p}</span></button>`).join('');return}iconRender();if(page==='Ürünler & stok'){let scanPanel=document.querySelector('#content > .card');if(scanPanel)scanPanel.insertAdjacentHTML('beforeend',categoryLegend())}};
+function normalized(s) {
+  return String(s || "")
+    .toLocaleLowerCase("tr")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/ı/g, "i");
+}
+function categoryKey(p) {
+  let c = normalized(p.category || p.group),
+    n = normalized(p.name);
+  if (/tutun|sigara/.test(c)) return "tobacco";
+  if (/sut|peynir|yogurt|mandira/.test(c)) return "dairy";
+  if (/ekmek|unlu|firin/.test(c)) return "bread";
+  if (/icecek|mesrubat|su urunleri/.test(c)) return "drink";
+  if (/meyve|sebze|manav/.test(c)) return "produce";
+  if (/temiz|deterjan/.test(c)) return "clean";
+  if (/atistir|biskuvi|cikolata/.test(c)) return "snack";
+  if (
+    /sigara|tutun|marlboro|winston|parliament|muratti|chesterfield|kent blue|kent switch|camel|lark|ld blue|pall mall/.test(
+      n,
+    )
+  )
+    return "tobacco";
+  if (/biskuvi|cikolata|gofret|cips|kraker|kek/.test(n)) return "snack";
+  if (/sut|peynir|yogurt|tereyag|kaymak|kefir|ayran/.test(n)) return "dairy";
+  if (/ekmek|pogaca|simit|baget/.test(n)) return "bread";
+  if (/cola|kola|fanta|gazoz|icecek|meyve suyu|soda|maden suyu|cay|kahve|^su\b/.test(n)) return "drink";
+  if (/deterjan|sabun|camasir|bulasik|yumusatici|sampuan/.test(n)) return "clean";
+  if (/biskuvi|cikolata|gofret|cips|kraker|kek/.test(n)) return "snack";
+  if (/elma|armut|muz|domates|salatalik|patates/.test(n)) return "produce";
+  return "other";
+}
+function categorySvg(key) {
+  let c = categoryIcons[key] || categoryIcons.other;
+  return `<svg viewBox="0 0 24 25" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${c.path}"/></svg>`;
+}
+function productMark(p) {
+  return `<span class="productIcon" title="${esc(categoryIcons[categoryKey(p)].label)}">${categorySvg(categoryKey(p))}</span>`;
+}
+function productLabel(p) {
+  return `<div class="productLabel">${productMark(p)}<div><strong>${esc(p.name)}</strong><small>${esc(p.category || categoryIcons[categoryKey(p)].label)}${p.barcode ? " · " + esc(p.barcode) : ""}</small></div></div>`;
+}
+function categoryLegend() {
+  return `<div class="categoryLegend" aria-label="Kategori simgeleri">${["bread", "drink", "dairy", "tobacco", "clean", "snack"].map((k) => `<span><span class="productIcon">${categorySvg(k)}</span>${esc(categoryIcons[k].label)}</span>`).join("")}</div>`;
+}
+table = function (list, edit = false) {
+  return `<div class="tablewrap" tabindex="0" aria-label="Ürün stok tablosu"><table><thead><tr><th>Ürün</th><th>Mevcut stok</th><th>Alt sınır</th><th>Durum</th><th>İşlem</th></tr></thead><tbody>${list.map((p) => `<tr><td>${productLabel(p)}</td><td>${p.stock} adet</td><td>${p.min} adet</td><td><span class="pill ${p.stock >= p.min ? "ok" : ""}">${p.stock >= p.min ? "Yeterli" : "Düşük stok"}</span></td><td><button class="link" onclick="editStock(${products.indexOf(p)})">${edit ? "Stok güncelle" : p.stock < p.min ? "Stok ekle →" : "Görüntüle →"}</button></td></tr>`).join("")}</tbody></table></div>`;
+};
+const styledAddProduct = addProduct;
+addProduct = function (b = "") {
+  styledAddProduct(b);
+  let form = document.querySelector("#mbody form"),
+    field = form.querySelector('[name="category"]');
+  field.setAttribute("list", "productCategories");
+  form.insertAdjacentHTML(
+    "beforeend",
+    `<datalist id="productCategories">${Object.values(categoryIcons)
+      .map((c) => `<option value="${esc(c.label)}">`)
+      .join("")}</datalist>`,
+  );
+  field
+    .closest("label")
+    .insertAdjacentHTML("afterend", '<div class="iconPreview" id="categoryPreview"></div>');
+  let update = () => {
+    let p = { name: form.querySelector('[name="name"]').value, category: field.value };
+    document.getElementById("categoryPreview").innerHTML =
+      productMark(p) +
+      `<div><strong style="font-size:12px">${esc(categoryIcons[categoryKey(p)].label)}</strong><p class="muted">Kategori simgesi otomatik seçilir.</p></div>`;
+  };
+  field.addEventListener("input", update);
+  form.querySelector('[name="name"]').addEventListener("input", update);
+  update();
+};
+const styledScan = scanBarcode;
+scanBarcode = function (e) {
+  styledScan(e);
+  let result = document.querySelector("#scanResult .note");
+  if (result) {
+    let barcode = result.textContent.split("Barkod: ").at(-1).trim(),
+      p = products.find((p) => p.barcode === barcode);
+    if (p) result.insertAdjacentHTML("afterbegin", productMark(p));
+  }
+};
+let endSort = "quantity";
+const exampleDayItems = [
+  { name: "Ekmek", category: "Ekmek & unlu mamuller", q: 100, total: 1500 },
+  { name: "Çay · 500 g", category: "İçecekler", q: 60, total: 7800 },
+  { name: "Süt · 1 L", category: "Süt & süt ürünleri", q: 50, total: 2250 },
+  { name: "Ayçiçek yağı · 1 L", category: "Temel gıda", q: 40, total: 3400 },
+  { name: "Yumurta · 30’lu", category: "Temel gıda", q: 30, total: 4500 },
+  { name: "Diğer ürünler", category: "Diğer ürünler", q: 6, total: 13000 },
+];
+function dayItems() {
+  if (!salesData) return exampleDayItems.map((p) => ({ ...p }));
+  let day = salesData.days[salesDate];
+  return Object.entries(day.items).map(([barcode, it]) => ({
+    ...salesData.products[barcode],
+    barcode,
+    q: it.q,
+    total: it.total,
+  }));
+}
+function rankedItems(sort = endSort) {
+  return dayItems().sort(
+    (a, b) => (sort === "revenue" ? b.total - a.total : b.q - a.q) || a.name.localeCompare(b.name, "tr"),
+  );
+}
+function topSellers(compact = false) {
+  let rows = rankedItems().slice(0, compact ? 5 : 10),
+    all = dayItems(),
+    revenue = all.reduce((s, p) => s + p.total, 0),
+    mode = salesData ? "Gerçek satış" : "Örnek veri",
+    date = salesData ? ds(salesDate) : "Örnek gün";
+  return `<section class="card panel endOfDay"><div class="paneltop"><div><div class="eyebrow">Gün sonu raporu</div><h2>En çok satılan ürünler</h2><p class="muted">${date} · İlk ${Math.min(all.length, compact ? 5 : 10)} ürün · ${mode}</p></div><div class="endToolbar">${compact ? '<button class="softLink" onclick="navigate(\'Gün sonu\')">Gün sonunu aç →</button>' : `<label>Sıralama<select aria-label="En çok satılanları sırala" onchange="endSort=this.value;render()"><option value="quantity" ${endSort === "quantity" ? "selected" : ""}>Satılan miktara göre</option><option value="revenue" ${endSort === "revenue" ? "selected" : ""}>Satış tutarına göre</option></select></label>`}</div></div><div class="tablewrap" tabindex="0" aria-label="En çok satılan ürünler tablosu"><table class="endTable"><thead><tr><th style="width:40px">Sıra</th><th>Ürün</th><th class="numeric">Satılan miktar</th><th class="numeric">Satış tutarı</th><th class="numeric">Ürün gelir payı</th></tr></thead><tbody>${
+    rows.length
+      ? rows
+          .map((p, i) => {
+            let share = revenue ? (p.total / revenue) * 100 : 0;
+            return `<tr><td><span class="rank ${i === 0 ? "first" : ""}">${String(i + 1).padStart(2, "0")}</span></td><td>${productLabel(p)}</td><td class="numeric">${fmt(p.q)}</td><td class="numeric amountStrong">${money(p.total)}</td><td class="numeric"><div class="share"><span class="shareTrack"><span class="shareFill" style="display:block;width:${Math.min(100, share)}%"></span></span><span>%${new Intl.NumberFormat("tr-TR", { maximumFractionDigits: 1 }).format(share)}</span></div></td></tr>`;
+          })
+          .join("")
+      : '<tr><td colspan="5" class="empty">Bu gün için uygun ürün satışı bulunamadı.</td></tr>'
+  }</tbody></table></div><div class="tableFoot"><span>${salesData ? "Hesap kayıtları ve negatif işlemler ürün sıralamasına alınmaz." : "Örnek ürünlerdir. Gerçek sıralama için satış raporunuzu yükleyin."}</span><span>Gelir payı: listedeki tüm uygun ürünlerin toplamına göre.</span></div><p class="dayEndNote">Miktarlar ürünün rapor birimindedir. Adet ve kilogram gibi farklı birimler varsa miktar sıralaması doğrudan karşılaştırılamaz; satış tutarına göre sıralamayı kullanabilirsiniz.</p></section>`;
+}
+function dayEnd() {
+  let items = rankedItems("quantity"),
+    revenue = dayItems().reduce((s, p) => s + p.total, 0),
+    d = salesData ? salesData.days[salesDate] : null;
+  return (
+    title(
+      "Gün sonu",
+      "İşletmenizin günlük performansı, tek bir bakışta.",
+      `<button onclick="navigate('Raporlar')">↓ Satış raporu yükle</button>`,
+    ) +
+    `<div class="reportBanner">${ico("report")}<span>${salesData ? "Yüklenen rapordan hesaplandı. Bu bir geçmiş gün özetidir; canlı kasa bağlantısı yok." : "Örnek gün sonu raporu. Gerçek verilerinizi yüklediğinizde tablo otomatik güncellenir."}</span></div>${
+      salesData
+        ? `<label class="field" style="max-width:260px">Rapor günü<select aria-label="Gün sonu rapor tarihi" onchange="salesDate=this.value;render()">${Object.keys(
+            salesData.days,
+          )
+            .sort()
+            .reverse()
+            .map((dt) => `<option value="${dt}" ${dt === salesDate ? "selected" : ""}>${ds(dt)}</option>`)
+            .join("")}</select></label>`
+        : ""
+    }<div class="endSummary"><div class="card"><p class="muted">${salesData ? "Seçilen günün" : "Örnek günün"} cirosu</p><div class="value">${money(d ? d.total : 32450)}</div><span class="muted">${d ? "TOPLAM alanı · Hesap ve negatif işlemler dahil" : "Örnek satış tutarı"}</span></div><div class="card"><p class="muted">Satılan ürün çeşidi</p><div class="value">${fmt(items.length)}</div><span class="muted">Pozitif satış içeren ${salesData ? "barkodlar" : "ürün / ürün grupları"}</span></div><div class="card"><p class="muted">Ürün sıralamasındaki satış tutarı</p><div class="value">${money(revenue)}</div><span class="muted">Hesap ve negatif işlemler hariç</span></div></div>${topSellers()}<div class="insight"><strong>Asistanla paylaşım</strong><p class="muted">Bu özet, otomasyon bağlandığında gün sonu mesajına eklenebilir. Şu anda otomatik gönderim yok.</p><button class="link" onclick="navigate('Asistan')">Bildirim tercihlerini aç →</button></div>`
+  );
+}
+const styledAssistant = assistant;
+assistant = function () {
+  return (
+    `<section class="card panel" style="margin-bottom:22px"><div class="paneltop"><div><div class="eyebrow">Günlük özet</div><h2>Bugün en çok ne satıldı?</h2><p class="muted">Ürünler, miktarlar ve satış tutarları gün sonu tablosunda.</p></div><button class="primary" onclick="navigate('Gün sonu')">Gün sonunu incele →</button></div></section>` +
+    styledAssistant()
+  );
+};
+const existingOverview = overview;
+overview = function () {
+  return existingOverview() + topSellers(true);
+};
+if (!pages.some(([p]) => p === "Gün sonu")) pages.splice(3, 0, ["Gün sonu", "report"]);
+const iconRender = render;
+render = function () {
+  if (page === "Gün sonu") {
+    // Reuse navigation, header and data restoration without requiring a new router.
+    let selected = page;
+    page = "Raporlar";
+    iconRender();
+    page = selected;
+    document.getElementById("crumb").textContent = selected;
+    document.getElementById("content").innerHTML = dayEnd();
+    document.getElementById("nav").innerHTML = pages
+      .map(
+        ([p, i]) =>
+          `<button class="${page === p ? "active" : ""}" onclick="navigate('${p}')">${ico(i)}<span>${p}</span></button>`,
+      )
+      .join("");
+    return;
+  }
+  iconRender();
+  if (page === "Ürünler & stok") {
+    let scanPanel = document.querySelector("#content > .card");
+    if (scanPanel) scanPanel.insertAdjacentHTML("beforeend", categoryLegend());
+  }
+};
 render();

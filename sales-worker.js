@@ -1,7 +1,162 @@
 // Local-only processing: never transmits report data.
-const numeric=s=>{s=String(s).trim().replace(/\./g,'').replace(',','.');if(s.startsWith('.'))s='0'+s;if(s.startsWith('-.'))s='-0'+s.slice(1);if(!/^-?\d+(\.\d+)?$/.test(s))throw Error('Geçersiz sayı');return Number(s)};
-function text(s){return s.replace(/<[^>]*>/g,'').replace(/&nbsp;/gi,' ').replace(/&amp;/gi,'&').replace(/&lt;/gi,'<').replace(/&gt;/gi,'>').replace(/&quot;/gi,'"').replace(/&#39;/gi,"'").replace(/&#(\d+);/g,(_,n)=>String.fromCharCode(+n)).trim()}
-async function reportStream(file){if(!file.name.toLowerCase().endsWith('.zip'))return file.stream();let end=new Uint8Array(await file.slice(Math.max(0,file.size-65557)).arrayBuffer()),v=new DataView(end.buffer),e=-1;for(let i=end.length-22;i>=0;i--)if(v.getUint32(i,true)===0x06054b50){e=i;break}if(e<0)throw Error('ZIP dizini okunamadı.');let offset=v.getUint32(e+16,true),size=v.getUint32(e+12,true);let buf=await file.slice(offset,offset+size).arrayBuffer(),cv=new DataView(buf),bytes=new Uint8Array(buf),files=[];for(let i=0;i+46<=bytes.length;){if(cv.getUint32(i,true)!==0x02014b50)throw Error('ZIP dizini geçersiz.');let nl=cv.getUint16(i+28,true),ex=cv.getUint16(i+30,true),co=cv.getUint16(i+32,true),name=new TextDecoder().decode(bytes.slice(i+46,i+46+nl));if(/\.(xls|html?)$/i.test(name))files.push({method:cv.getUint16(i+10,true),flags:cv.getUint16(i+8,true),size:cv.getUint32(i+20,true),unpacked:cv.getUint32(i+24,true),offset:cv.getUint32(i+42,true)});i+=46+nl+ex+co}if(files.length!==1)throw Error('ZIP içinde tek bir XLS/HTML satış raporu bulunmalı.');let f=files[0];if(f.flags&1)throw Error('Şifreli ZIP desteklenmiyor.');if(f.unpacked>500e6)throw Error('Açılmış rapor en fazla 500 MB olabilir.');let h=new DataView(await file.slice(f.offset,f.offset+30).arrayBuffer());if(h.getUint32(0,true)!==0x04034b50)throw Error('ZIP dosya başlığı hatalı.');let start=f.offset+30+h.getUint16(26,true)+h.getUint16(28,true);let stream=file.slice(start,start+f.size).stream();if(f.method===0)return stream;if(f.method!==8)throw Error('Bu ZIP sıkıştırma yöntemi desteklenmiyor.');return stream.pipeThrough(new DecompressionStream('deflate-raw'))}
-onmessage=async({data:file})=>{try{let result={version:1,days:{},products:{},stats:{rows:0,hesap:0,negative:0,invalid:0,fractional:0,duplicate:0}},seen=new Set(),reader=(await reportStream(file)).pipeThrough(new TextDecoderStream('windows-1254')).getReader(),buf='',read=0,last=0,header=false;function row(html){let c=[...html.matchAll(/<td\b[^>]*>([\s\S]*?)<\/td>/gi)].map(m=>text(m[1]));if(c.includes('BARKOD')&&c.includes('MİKTAR')){header=true;return}if(c.length!==13||!/^\d{2}\.\d{2}\.\d{4}$/.test(c[0]))return;let match=c[0].split('.'),dt=`${match[2]}-${match[1]}-${match[0]}`;if(new Date(dt+'T12:00:00Z').toISOString().slice(0,10)!==dt){result.stats.invalid++;return}let q,price,total;try{q=numeric(c[7]);price=numeric(c[8]);total=numeric(c[9])}catch{result.stats.invalid++;return}let b=c[4],name=c[5],hesap=name.toLocaleUpperCase('tr').includes('HESAP'),negative=q<0||total<0;result.stats.rows++;result.stats.hesap+=+hesap;result.stats.negative+=+negative;result.stats.fractional+=+!Number.isInteger(q);let key=JSON.stringify(c);if(seen.has(key))result.stats.duplicate++;else seen.add(key);let d=result.days[dt]||(result.days[dt]={total:0,rows:0,qty:0,hesap:0,items:{}});d.total+=total;d.rows++;if(hesap)d.hesap+=total;if(!hesap&&!negative&&b&&q>0){d.qty+=q;let p=result.products[b]||(result.products[b]={name,category:c[6],barcode:b,qty:0,total:0,daily:{}});p.name=name;p.category=c[6];p.qty+=q;p.total+=total;p.daily[dt]=(p.daily[dt]||0)+q;let it=d.items[b]||(d.items[b]={q:0,total:0});it.q+=q;it.total+=total}}
-while(true){let {value,done}=await reader.read();if(done)break;read+=value.length;buf+=value;let end;while((end=buf.toLowerCase().indexOf('</tr>'))>=0){let section=buf.slice(0,end+5);buf=buf.slice(end+5);row(section)}if(buf.length>5e6)throw Error('Tablo biçimi desteklenmiyor. XLSX veya ikili XLS yerine bu market programının HTML tabanlı XLS raporunu seçin.');if(read-last>5e6){postMessage({progress:result.stats.rows});last=read}}
-if(!header||!result.stats.rows)throw Error('Beklenen satış sütunları bulunamadı.');if(result.stats.invalid)throw Error(`${result.stats.invalid} satırda tarih veya sayı okunamadı; eksik veriyle aktarım yapılmadı.`);seen.clear();postMessage({result})}catch(e){postMessage({error:e.message+' ZIP açılamıyorsa içindeki XLS dosyasını doğrudan seçin.'})}};
+const numeric = (s) => {
+  s = String(s).trim().replace(/\./g, "").replace(",", ".");
+  if (s.startsWith(".")) s = "0" + s;
+  if (s.startsWith("-.")) s = "-0" + s.slice(1);
+  if (!/^-?\d+(\.\d+)?$/.test(s)) throw Error("Geçersiz sayı");
+  return Number(s);
+};
+function text(s) {
+  return s
+    .replace(/<[^>]*>/g, "")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(+n))
+    .trim();
+}
+async function reportStream(file) {
+  if (!file.name.toLowerCase().endsWith(".zip")) return file.stream();
+  let end = new Uint8Array(await file.slice(Math.max(0, file.size - 65557)).arrayBuffer()),
+    v = new DataView(end.buffer),
+    e = -1;
+  for (let i = end.length - 22; i >= 0; i--)
+    if (v.getUint32(i, true) === 0x06054b50) {
+      e = i;
+      break;
+    }
+  if (e < 0) throw Error("ZIP dizini okunamadı.");
+  let offset = v.getUint32(e + 16, true),
+    size = v.getUint32(e + 12, true);
+  let buf = await file.slice(offset, offset + size).arrayBuffer(),
+    cv = new DataView(buf),
+    bytes = new Uint8Array(buf),
+    files = [];
+  for (let i = 0; i + 46 <= bytes.length; ) {
+    if (cv.getUint32(i, true) !== 0x02014b50) throw Error("ZIP dizini geçersiz.");
+    let nl = cv.getUint16(i + 28, true),
+      ex = cv.getUint16(i + 30, true),
+      co = cv.getUint16(i + 32, true),
+      name = new TextDecoder().decode(bytes.slice(i + 46, i + 46 + nl));
+    if (/\.(xls|html?)$/i.test(name))
+      files.push({
+        method: cv.getUint16(i + 10, true),
+        flags: cv.getUint16(i + 8, true),
+        size: cv.getUint32(i + 20, true),
+        unpacked: cv.getUint32(i + 24, true),
+        offset: cv.getUint32(i + 42, true),
+      });
+    i += 46 + nl + ex + co;
+  }
+  if (files.length !== 1) throw Error("ZIP içinde tek bir XLS/HTML satış raporu bulunmalı.");
+  let f = files[0];
+  if (f.flags & 1) throw Error("Şifreli ZIP desteklenmiyor.");
+  if (f.unpacked > 500e6) throw Error("Açılmış rapor en fazla 500 MB olabilir.");
+  let h = new DataView(await file.slice(f.offset, f.offset + 30).arrayBuffer());
+  if (h.getUint32(0, true) !== 0x04034b50) throw Error("ZIP dosya başlığı hatalı.");
+  let start = f.offset + 30 + h.getUint16(26, true) + h.getUint16(28, true);
+  let stream = file.slice(start, start + f.size).stream();
+  if (f.method === 0) return stream;
+  if (f.method !== 8) throw Error("Bu ZIP sıkıştırma yöntemi desteklenmiyor.");
+  return stream.pipeThrough(new DecompressionStream("deflate-raw"));
+}
+onmessage = async ({ data: file }) => {
+  try {
+    let result = {
+        version: 1,
+        days: {},
+        products: {},
+        stats: { rows: 0, hesap: 0, negative: 0, invalid: 0, fractional: 0, duplicate: 0 },
+      },
+      seen = new Set(),
+      reader = (await reportStream(file)).pipeThrough(new TextDecoderStream("windows-1254")).getReader(),
+      buf = "",
+      read = 0,
+      last = 0,
+      header = false;
+    function row(html) {
+      let c = [...html.matchAll(/<td\b[^>]*>([\s\S]*?)<\/td>/gi)].map((m) => text(m[1]));
+      if (c.includes("BARKOD") && c.includes("MİKTAR")) {
+        header = true;
+        return;
+      }
+      if (c.length !== 13 || !/^\d{2}\.\d{2}\.\d{4}$/.test(c[0])) return;
+      let match = c[0].split("."),
+        dt = `${match[2]}-${match[1]}-${match[0]}`;
+      if (new Date(dt + "T12:00:00Z").toISOString().slice(0, 10) !== dt) {
+        result.stats.invalid++;
+        return;
+      }
+      let q, price, total;
+      try {
+        q = numeric(c[7]);
+        price = numeric(c[8]);
+        total = numeric(c[9]);
+      } catch {
+        result.stats.invalid++;
+        return;
+      }
+      let b = c[4],
+        name = c[5],
+        hesap = name.toLocaleUpperCase("tr").includes("HESAP"),
+        negative = q < 0 || total < 0;
+      result.stats.rows++;
+      result.stats.hesap += +hesap;
+      result.stats.negative += +negative;
+      result.stats.fractional += +!Number.isInteger(q);
+      let key = JSON.stringify(c);
+      if (seen.has(key)) result.stats.duplicate++;
+      else seen.add(key);
+      let d = result.days[dt] || (result.days[dt] = { total: 0, rows: 0, qty: 0, hesap: 0, items: {} });
+      d.total += total;
+      d.rows++;
+      if (hesap) d.hesap += total;
+      if (!hesap && !negative && b && q > 0) {
+        d.qty += q;
+        let p =
+          result.products[b] ||
+          (result.products[b] = { name, category: c[6], barcode: b, qty: 0, total: 0, daily: {} });
+        p.name = name;
+        p.category = c[6];
+        p.qty += q;
+        p.total += total;
+        p.daily[dt] = (p.daily[dt] || 0) + q;
+        let it = d.items[b] || (d.items[b] = { q: 0, total: 0 });
+        it.q += q;
+        it.total += total;
+      }
+    }
+    while (true) {
+      let { value, done } = await reader.read();
+      if (done) break;
+      read += value.length;
+      buf += value;
+      let end;
+      while ((end = buf.toLowerCase().indexOf("</tr>")) >= 0) {
+        let section = buf.slice(0, end + 5);
+        buf = buf.slice(end + 5);
+        row(section);
+      }
+      if (buf.length > 5e6)
+        throw Error(
+          "Tablo biçimi desteklenmiyor. XLSX veya ikili XLS yerine bu market programının HTML tabanlı XLS raporunu seçin.",
+        );
+      if (read - last > 5e6) {
+        postMessage({ progress: result.stats.rows });
+        last = read;
+      }
+    }
+    if (!header || !result.stats.rows) throw Error("Beklenen satış sütunları bulunamadı.");
+    if (result.stats.invalid)
+      throw Error(
+        `${result.stats.invalid} satırda tarih veya sayı okunamadı; eksik veriyle aktarım yapılmadı.`,
+      );
+    seen.clear();
+    postMessage({ result });
+  } catch (e) {
+    postMessage({ error: e.message + " ZIP açılamıyorsa içindeki XLS dosyasını doğrudan seçin." });
+  }
+};
