@@ -4,6 +4,10 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <meta name="theme-color" content="#b72b36" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="Dükkan" />
     <title>Dükkan — İşletme Paneli</title>
     <meta name="description" content="Satış, stok ve tahminlerinizi tek bir sade panelden takip edin." />
     <style>
@@ -687,7 +691,8 @@
     </style>
     <link rel="stylesheet" href="polish.css" />
     <link rel="icon" type="image/svg+xml" href="assets/m-logo.svg" />
-    <link rel="apple-touch-icon" href="assets/m-logo.svg" />
+    <link rel="apple-touch-icon" href="assets/icon-192.png" />
+    <link rel="manifest" href="manifest.webmanifest" />
     <link rel="stylesheet" href="register.css" />
   </head>
   <body>
@@ -750,6 +755,7 @@
     </dialog>
     <div id="toast" class="toast hidden" role="status"></div>
     <script defer src="register-core.js"></script>
+    <script defer src="storage.js"></script>
     <script defer src="app.js"></script>
     <script defer src="categories.js"></script>
     <script defer src="stock.js"></script>
@@ -761,5 +767,6 @@
     <script defer src="assistant.js"></script>
     <script defer src="reports.js"></script>
     <script defer src="main.js"></script>
+    <script defer src="pwa.js"></script>
   </body>
 </html>

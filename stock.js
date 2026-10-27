@@ -12,7 +12,13 @@ const barcodeRule = "Barkod 4–64 karakter olmalı; harf, rakam, nokta, tire ve
 const barcodeTaken = "Bu barkod zaten kayıtlı. Stok girişi alanından okutun.";
 
 function stockTable(list, edit = false) {
-  return `<div class="tablewrap" tabindex="0" aria-label="Ürün stok tablosu"><table><thead><tr><th>Ürün</th><th>Mevcut stok</th><th>Alt sınır</th><th>Durum</th><th>İşlem</th></tr></thead><tbody>${list.map((p) => `<tr><td>${productLabel(p)}</td><td>${p.stock} adet</td><td>${p.min} adet</td><td><span class="pill ${p.stock >= p.min ? "ok" : ""}">${p.stock >= p.min ? "Yeterli" : "Düşük stok"}</span></td><td><button class="link" onclick="editStock('${esc(p.id)}')">${edit ? "Stok güncelle" : p.stock < p.min ? "Stok ekle →" : "Görüntüle →"}</button></td></tr>`).join("")}</tbody></table></div>`;
+  return `<div class="tablewrap" tabindex="0" aria-label="Ürün stok tablosu"><table><thead><tr><th>Ürün</th><th>Mevcut stok</th><th>Alt sınır</th><th>Durum</th><th>İşlem</th></tr></thead><tbody>${list.map((p) => `<tr><td>${productLabel(p)}${orderHintLine(p)}</td><td>${p.stock} adet</td><td>${p.min} adet</td><td><span class="pill ${p.stock >= p.min ? "ok" : ""}">${p.stock >= p.min ? "Yeterli" : "Düşük stok"}</span></td><td><button class="link" onclick="editStock('${esc(p.id)}')">${edit ? "Stok güncelle" : p.stock < p.min ? "Stok ekle →" : "Görüntüle →"}</button></td></tr>`).join("")}</tbody></table></div>`;
+}
+
+// A loaded tahmin.json (forecast.js) adds a muted suggested-order line under matched products.
+function orderHintLine(p, cls = "orderHint") {
+  let hint = orderHint(p);
+  return hint ? `<small class="${cls}">${esc(hint)}</small>` : "";
 }
 
 function scanPanel() {
@@ -195,7 +201,7 @@ function editStock(id) {
   if (!p) return toast("Ürün bulunamadı.");
   modal(
     p.name + " · Stok güncelle",
-    `<form onsubmit="updateStock(event,'${esc(id)}')"><label class="field">Mevcut stok<input name="stock" type="number" min="0" step="1" required value="${p.stock}"></label><label class="field">Alt sınır<input name="min" type="number" min="1" step="1" required value="${p.min}"></label><p id="stockError" role="alert" class="danger"></p><button class="primary">Değişiklikleri kaydet</button></form>`,
+    `<form onsubmit="updateStock(event,'${esc(id)}')">${orderHintLine(p, "orderHint modalHint")}<label class="field">Mevcut stok<input name="stock" type="number" min="0" step="1" required value="${p.stock}"></label><label class="field">Alt sınır<input name="min" type="number" min="1" step="1" required value="${p.min}"></label><p id="stockError" role="alert" class="danger"></p><button class="primary">Değişiklikleri kaydet</button></form>`,
   );
 }
 
