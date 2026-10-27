@@ -155,6 +155,16 @@ def write_rows(rows: pd.DataFrame, path: str | Path, sep: str = ";") -> None:
 def write_canonical(
     sales: pd.DataFrame, products: pd.DataFrame, path: str | Path, sep: str = ";"
 ) -> None:
-    """Write cleaned product-day rows (one row per product-day with sales)."""
-    df = sales.merge(products, left_on="barkod", right_index=True, how="left")
+    """Write cleaned product-day rows (one row per product-day with sales).
+
+    The ``birim`` column carries only a unit that the source *declared*
+    (``products["birim_beyan"]``). Inferred units are not written: the model
+    re-infers them when it reads the file, from the days before the external
+    test area only, so writing a unit inferred from the whole file would let
+    test-period sales decide the evaluation setup.
+    """
+    prod = products[["urun", "kategori"]].assign(
+        birim=products["birim_beyan"] if "birim_beyan" in products.columns else products["birim"]
+    )
+    df = sales.merge(prod, left_on="barkod", right_index=True, how="left")
     write_rows(df, path, sep)

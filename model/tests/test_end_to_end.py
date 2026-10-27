@@ -69,3 +69,42 @@ def test_committed_sample_is_reproducible(tmp_path):
     d = load_canonical(sample)
     assert d.quality["products"] == 20 and d.quality["date_range"] == {"start": "2023-11-01", "end": "2026-10-26"}
     assert sample.stat().st_size + (MODEL_DIR / "ornek" / "rapor.zip").stat().st_size < 200_000
+
+
+def test_cli_unexpected_error_is_one_turkish_line(tmp_path, monkeypatch, capsys):
+    """L4: any exception -> one-line Turkish message, exit 1; traceback only with --ayrintili."""
+    from dukkan_tahmin import __main__ as cli
+
+    def boom(_a):
+        raise RuntimeError("iç\nhata")
+
+    monkeypatch.setattr(cli, "cmd_tahmin", boom)
+    args = ["tahmin", "--girdi", "x.csv", "--cikti", str(tmp_path / "t.json")]
+    assert cli.main(args) == 1
+    err = capsys.readouterr().err.strip()
+    assert err.count("\n") == 0 and err.startswith("Hata: beklenmeyen sorun (RuntimeError: iç hata)")
+    assert "--ayrintili" in err and "Traceback" not in err
+    assert cli.main(args + ["--ayrintili"]) == 1
+    assert "Traceback" in capsys.readouterr().err
+    # a known error stays a plain message
+    assert cli.main(["tahmin", "--girdi", str(tmp_path / "yok.csv"), "--cikti", str(tmp_path / "t.json")]) == 1
+    assert capsys.readouterr().err.startswith("Hata: ")
+
+
+def test_cli_short_data_and_invalid_report_messages(tmp_path, capsys):
+    from dukkan_tahmin.__main__ import main
+    from dukkan_tahmin.synthetic import write_report
+
+    short = tmp_path / "kisa.csv"
+    generate(months=15, n_products=3, seed=1, end="2026-09-30").to_canonical(short)
+    assert main(["degerlendir", "--girdi", str(short), "--cikti", str(tmp_path / "d.json"), "--hizli", "--sessiz"]) == 1
+    err = capsys.readouterr().err
+    assert "en az 20" in err and "--en-az-egitim-ay" in err
+
+    xls = tmp_path / "r.xls"
+    write_report(generate(months=2, n_products=3, seed=1, end="2026-03-31"), xls, n_invalid=1)
+    out = tmp_path / "c.csv"
+    assert main(["donustur", "--girdi", str(xls), "--cikti", str(out)]) == 1
+    assert "--devam" in capsys.readouterr().err and not out.exists()
+    assert main(["donustur", "--girdi", str(xls), "--cikti", str(out), "--devam"]) == 0
+    assert "geçersiz satır : " in capsys.readouterr().out and out.exists()

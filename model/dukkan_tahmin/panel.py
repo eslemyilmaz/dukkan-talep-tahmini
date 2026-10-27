@@ -35,6 +35,13 @@ class Panel:
     first_sale: np.ndarray  # index of first positive sale, -1 if none
     closed_weekdays: tuple[int, ...]
     closed_dates: frozenset[pd.Timestamp]
+    # unit inferred from the whole history (final forecast output); ``units`` is the
+    # leak-free unit used for evaluation (see quality.internal_cutoff)
+    units_full: np.ndarray | None = None
+
+    def __post_init__(self) -> None:
+        if self.units_full is None:
+            self.units_full = self.units
 
     @property
     def n_products(self) -> int:
@@ -94,4 +101,5 @@ def build_panel(data: CleanData, config: Config | None = None) -> Panel:
         first_sale=first.astype(int),
         closed_weekdays=tuple(data.closed_weekdays),
         closed_dates=frozenset(data.closed_dates),
+        units_full=(prod["birim_tum"] if "birim_tum" in prod.columns else prod["birim"]).to_numpy(dtype=object),
     )

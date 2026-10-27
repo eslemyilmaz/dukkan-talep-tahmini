@@ -65,6 +65,11 @@ def method_block(res: BacktestResult, cfg: Config, weights: dict[str, Any] | Non
         "name": "grouped_regularized_combination",
         "lambda": float(res.lam),
         "a0": a0 or {h: float(v) for h, v in ws.a0.items()},
+        "update_rule": {
+            "a0": "fixed_internal_validation",
+            "lambda": "fixed_internal_validation",
+            "group_weights": "refit_each_origin_elapsed_outcomes",
+        },
         "group_thresholds": res.thresholds.to_dict(),
         "weights": weights or {h: {g: float(v) for g, v in w.items()} for h, w in ws.weights.items()},
         "xgboost_params": {**res.best_params, "tree_method": "hist", "random_state": cfg.random_state},

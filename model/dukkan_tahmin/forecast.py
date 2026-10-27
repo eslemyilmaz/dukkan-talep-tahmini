@@ -1,7 +1,8 @@
 """Production forecast at the last observed day + stock block (Eq. 6).
 
 Uses the settings frozen by the backtest (XGBoost parameters, thresholds,
-lambda) and the (iv) weights refitted from every outcome observed so far.
+lambda, a0) and the (iv) group weights refitted from every outcome observed so
+far. ``order_up_to`` is not rounded; the app rounds the final order to the pack.
 """
 
 from __future__ import annotations
@@ -75,7 +76,9 @@ def final_forecast(
     def ss_for(win: int) -> tuple[np.ndarray, np.ndarray]:
         if win not in ss_cache:
             errs, scales = window_errors(panel, past, "combined", win, upto=o)
-            ss_cache[win] = safety_stocks(panel, errs, scales, mean_daily * win, cfg.service_level, cfg.ss_min_errors)
+            ss_cache[win] = safety_stocks(
+                panel, errs, scales, mean_daily * win, cfg.service_level, cfg.ss_min_errors, units=panel.units_full
+            )
         return ss_cache[win]
 
     Y = panel.Y
@@ -83,7 +86,7 @@ def final_forecast(
     for p in np.flatnonzero(panel.active(o)):
         b = str(panel.barcodes[p])
         g = str(fc.groups.iloc[p])
-        unit = str(panel.units[p])
+        unit = str(panel.units_full[p])  # whole-history unit for the operational output
         flags: list[str] = []
         st = fc.stats.iloc[p]
         if st["obs"] < res.thresholds.min_obs:
@@ -135,7 +138,7 @@ def final_forecast(
                     "review_days": int(prm.review_days),
                     "demand_over_lead_and_review": _r(D),
                     "safety_stock": _r(ss),
-                    "order_up_to": _r(order_up_to_level(D, ss, prm.pack_size)),
+                    "order_up_to": _r(order_up_to_level(D, ss)),  # unrounded; the app rounds the order
                     "pack_size": float(prm.pack_size),
                     "service_level": float(cfg.service_level),
                     "on_hand": None,

@@ -8,6 +8,7 @@ from __future__ import annotations
 import argparse
 import sys
 import time
+import traceback
 from dataclasses import replace
 from pathlib import Path
 from typing import Any
@@ -72,6 +73,10 @@ def build_config(a: argparse.Namespace) -> Config:
         kw["monthly_mode"] = a.aylik_mod
     if getattr(a, "baslangic_sayisi", None):
         kw["n_external_origins"] = a.baslangic_sayisi
+    if getattr(a, "en_az_egitim_ay", None) is not None:
+        if a.en_az_egitim_ay < 1:
+            raise ValueError("--en-az-egitim-ay en az 1 olmalı.")
+        kw["min_train_months"] = a.en_az_egitim_ay
     if getattr(a, "pilot", None):
         p = Path(a.pilot)
         kw["pilot_products"] = tuple(sorted(_read_barcode_list(a.pilot) or ())) if p.exists() else _strs(a.pilot)
@@ -92,7 +97,7 @@ def cmd_donustur(a: argparse.Namespace) -> int:
     from .quality import quality_warnings
 
     cfg = build_config(a)
-    data = convert_report(a.girdi, cfg, catalog_barcodes=_read_barcode_list(a.katalog))
+    data = convert_report(a.girdi, cfg, catalog_barcodes=_read_barcode_list(a.katalog), allow_invalid=a.devam)
     write_canonical(data.sales, data.products, a.cikti)
     if a.kalite:
         write_json(data.quality, a.kalite)
@@ -105,6 +110,7 @@ def cmd_donustur(a: argparse.Namespace) -> int:
     print(f"  HESAP satırı / tutarı      : {q['hesap_rows']} / {q['hesap_amount']:.2f}")
     print(f"  Negatif (iade) satır       : {q['negative_rows']}")
     print(f"  Yinelenen / geçersiz satır : {q['duplicate_rows']} / {q['invalid_rows']}")
+    print(f"  Hücre sayısı farklı satır  : {q.get('cell_count_mismatch_rows', 0)}")
     print(f"  Ürün-gün satırı yazıldı    : {len(data.sales)} -> {a.cikti}")
     for w in quality_warnings(q):
         print("  Uyarı: " + w)
@@ -225,6 +231,10 @@ def _common_model(p: argparse.ArgumentParser) -> None:
     _common_data(p)
     p.add_argument("--hizli", action="store_true", help="Küçük arama ızgarası ve az ağaç (test/deneme için).")
     p.add_argument("--baslangic-sayisi", type=int, help="Dış test başlangıç sayısı (varsayılan: son 12 aydaki tümü).")
+    p.add_argument(
+        "--en-az-egitim-ay", type=int,
+        help="İlk iç başlangıçtan önceki en kısa eğitim süresi, ay (varsayılan 12). Kısa veride küçültün.",
+    )
     p.add_argument("--aylik-mod", choices=["calendar", "30d"], help="Aylık ufuk: gelecek takvim ayı (varsayılan) veya 30 gün.")
     p.add_argument("--pilot", help="Pilot ürün barkodları (virgülle) veya barkod listesi dosyası.")
     p.add_argument("--tohum", type=int, help="Rastgelelik tohumu (varsayılan 7).")
@@ -236,18 +246,27 @@ def _common_model(p: argparse.ArgumentParser) -> None:
 
 
 def make_parser() -> argparse.ArgumentParser:
+    common = argparse.ArgumentParser(add_help=False)
+    common.add_argument("--ayrintili", action="store_true", help="Hata olursa Python hata izini (traceback) de yaz.")
     ap = argparse.ArgumentParser(prog="python -m dukkan_tahmin", description="Dükkan talep tahmini araştırma katmanı.")
     sub = ap.add_subparsers(dest="komut", required=True)
 
-    p = sub.add_parser("donustur", help="Ham market raporunu (HTML-XLS / ZIP) ürün-gün CSV'sine dönüştür.")
+    def add_parser(name: str, **kw: Any) -> argparse.ArgumentParser:
+        return sub.add_parser(name, parents=[common], **kw)
+
+    p = add_parser("donustur", help="Ham market raporunu (HTML-XLS / ZIP) ürün-gün CSV'sine dönüştür.")
     p.add_argument("--girdi", required=True)
     p.add_argument("--cikti", required=True)
     p.add_argument("--kalite", help="Veri kalite raporu (JSON).")
     p.add_argument("--katalog", help="Ürün kataloğu barkod listesi (eşleşmeyen barkodlar için).")
+    p.add_argument(
+        "--devam", action="store_true",
+        help="Tarihi veya sayısı okunamayan satırlarda durma; bu satırları dışarıda bırak ve kalite raporunda say.",
+    )
     _common_data(p)
     p.set_defaults(func=cmd_donustur)
 
-    p = sub.add_parser("sentetik", help="Sentetik satış verisi üret.")
+    p = add_parser("sentetik", help="Sentetik satış verisi üret.")
     p.add_argument("--cikti", required=True)
     p.add_argument("--ay", type=int, default=36)
     p.add_argument("--urun", type=int, default=40)
@@ -261,13 +280,13 @@ def make_parser() -> argparse.ArgumentParser:
     p.add_argument("--html-bitis", help="Ham raporu bu tarihte bitir.")
     p.set_defaults(func=cmd_sentetik)
 
-    p = sub.add_parser("degerlendir", help="İlerleyen başlangıçlı geriye dönük test ve bileşen çıkarma.")
+    p = add_parser("degerlendir", help="İlerleyen başlangıçlı geriye dönük test ve bileşen çıkarma.")
     p.add_argument("--girdi", required=True)
     p.add_argument("--cikti", required=True)
     _common_model(p)
     p.set_defaults(func=cmd_degerlendir)
 
-    p = sub.add_parser("tahmin", help="Son güne kadar tüm veriyle tahmin + stok önerisi (tahmin.json).")
+    p = add_parser("tahmin", help="Son güne kadar tüm veriyle tahmin + stok önerisi (tahmin.json).")
     p.add_argument("--girdi", required=True)
     p.add_argument("--cikti", required=True)
     p.add_argument("--lambda", dest="lambda_", type=float, help="λ değerini sabitle (iç seçim yapılmaz).")
@@ -278,12 +297,32 @@ def make_parser() -> argparse.ArgumentParser:
     return ap
 
 
+def _one_line(e: BaseException) -> str:
+    return " ".join(str(e).split())
+
+
 def main(argv: list[str] | None = None) -> int:
     args = make_parser().parse_args(argv)
+    verbose = bool(getattr(args, "ayrintili", False))
     try:
         return int(args.func(args))
-    except (ValueError, FileNotFoundError) as e:
-        _err(f"Hata: {e}")
+    except (ValueError, FileNotFoundError, PermissionError, IsADirectoryError) as e:
+        if verbose:
+            traceback.print_exc()
+        msg = _one_line(e)
+        if isinstance(e, OSError) and getattr(e, "filename", None):
+            msg = f"{e.strerror or type(e).__name__}: {e.filename}"
+        _err(f"Hata: {msg}")
+        return 1
+    except Exception as e:  # noqa: BLE001 -- last-resort handler: one Turkish line, traceback on request
+        if verbose:
+            traceback.print_exc()
+            _err(f"Hata: beklenmeyen sorun ({type(e).__name__}: {_one_line(e)}).")
+        else:
+            _err(
+                f"Hata: beklenmeyen sorun ({type(e).__name__}: {_one_line(e)}). "
+                "Ayrıntı için komutu --ayrintili ile yeniden çalıştırın."
+            )
         return 1
 
 

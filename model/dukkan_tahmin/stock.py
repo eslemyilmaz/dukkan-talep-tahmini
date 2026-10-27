@@ -7,16 +7,20 @@ Eq. 6   S_i = D_i(L_i + R_i) + SS_i
 
 * D_i(L+R): sum of the daily *combined* forecasts over the L + R days after
   the origin (from the recursive daily paths);
-* SS_i: the ``service_level`` quantile of past under-forecast errors
-  (actual - forecast over the same L + R window, validation origins only),
-  clipped at 0: SS = max(0, Q_q(e)) = Q_q(max(e, 0)). With fewer than
-  ``ss_min_errors`` errors for a product, the product-scaled errors of all
-  products of the same unit are pooled.
+* SS_i: the ``service_level`` quantile of past *under-forecast* errors only
+  (e = actual - forecast > 0 over the same L + R window, from forecasts whose
+  window has elapsed). Over-forecasts do not enter. A product with at least
+  ``ss_min_errors`` errors and none of them positive gets SS = 0. A product
+  with fewer than ``ss_min_errors`` positive errors (or too short a history)
+  uses the pooled product-scaled positive errors of all products of the same
+  unit, times its own scale. With ~6 origins the 0.9 quantile is close to the
+  largest under-forecast seen.
 
-The Python layer does not know current stock: :func:`stock_block` returns D,
-SS and the order-up-to level with ``on_hand``/``suggested_order`` = null for
-the tablet app to fill; :func:`compute_order` does the last step when the
-stock position is known.
+Pack rounding happens exactly once, on the final order: ``order_up_to`` (S)
+is *not* rounded; :func:`compute_order` rounds ``max(0, S - IP)`` up to the
+pack size. The Python layer does not know current stock: the forecast output
+carries D, SS, the unrounded S and ``pack_size`` with ``on_hand`` /
+``suggested_order`` = null; the tablet app computes IP and the rounded order.
 """
 
 from __future__ import annotations
@@ -48,9 +52,9 @@ def ceil_to_pack(q: float, pack: float) -> float:
     return float(math.ceil(q / pack - 1e-9) * pack)
 
 
-def order_up_to_level(demand_lr: float, safety_stock: float, pack: float = 1.0) -> float:
-    """Eq. 6 left-hand side, rounded up to the pack size."""
-    return ceil_to_pack(max(0.0, demand_lr) + max(0.0, safety_stock), pack)
+def order_up_to_level(demand_lr: float, safety_stock: float) -> float:
+    """Eq. 6 left-hand side S = D(L+R) + SS, *not* rounded (see module doc)."""
+    return max(0.0, demand_lr) + max(0.0, safety_stock)
 
 
 def compute_order(
@@ -101,24 +105,39 @@ def safety_stocks(
     current_scale: np.ndarray,
     q: float,
     min_errors: int,
+    units: np.ndarray | None = None,
 ) -> tuple[np.ndarray, np.ndarray]:
-    """SS per product and a flag telling whether pooled errors were used."""
+    """SS per product and a flag telling whether pooled errors were used.
+
+    Only under-forecast errors (e > 0) enter the quantile (proposal 2.6):
+
+    * >= ``min_errors`` positive errors: SS = Q_q(positive errors);
+    * >= ``min_errors`` errors but none positive: SS = 0;
+    * otherwise: SS = Q_q(pooled scaled positive errors of the same unit) x the
+      product's current scale (0 when the pool is empty), flagged as pooled.
+
+    ``units`` (default ``panel.units``) decides which products are pooled together.
+    """
     P = panel.n_products
+    units = panel.units if units is None else units
     ss = np.zeros(P)
     pooled_flag = np.zeros(P, bool)
     pooled: dict[str, list[float]] = {}
     for p, e in errs.items():
         for v, m in zip(e, scales[p]):
-            if m > 0:
-                pooled.setdefault(str(panel.units[p]), []).append(v / m)
+            if v > 0 and m > 0:
+                pooled.setdefault(str(units[p]), []).append(v / m)
     for p in range(P):
         e = errs.get(p, [])
-        if len(e) >= min_errors:
-            ss[p] = max(0.0, float(np.quantile(e, q)))
+        pos = [v for v in e if v > 0]
+        if len(pos) >= min_errors:
+            ss[p] = float(np.quantile(pos, q))
+        elif len(e) >= min_errors and not pos:
+            ss[p] = 0.0
         else:
-            pool = pooled.get(str(panel.units[p]), [])
+            pool = pooled.get(str(units[p]), [])
             if pool and current_scale[p] > 0:
-                ss[p] = max(0.0, float(np.quantile(pool, q)) * float(current_scale[p]))
+                ss[p] = float(np.quantile(pool, q)) * float(current_scale[p])
             pooled_flag[p] = True
     return ss, pooled_flag
 
@@ -224,7 +243,7 @@ def _review(
     on_order = sum(pipeline.values()) if pipeline else np.zeros_like(on_hand)
     q = np.zeros_like(on_hand)
     for p in pidx:
-        S = order_up_to_level(D[p], ss[p], packs[p])
+        S = order_up_to_level(D[p], ss[p])
         q[p] = compute_order(S, on_hand[p], float(on_order[p]), 0.0, packs[p])
     if q.any():
         arrive = r + max(L, 1)

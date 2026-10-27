@@ -25,7 +25,16 @@
       "properties": {
         "name": {"const": "grouped_regularized_combination"},
         "lambda": {"type": "number", "minimum": 0},
-        "a0": {"$ref": "#/$defs/horizonNumbers"},
+        "a0": {"$ref": "#/$defs/horizonNumbers", "description": "Ortak referans ağırlığı; iç doğrulamada (λ = 0, tüm ürünler) bir kez hesaplanır ve dış testte ve son tahminde sabit kalır."},
+        "update_rule": {
+          "type": "object",
+          "description": "Hangi parametrenin nerede belirlendiği: a0 ve λ yalnızca iç doğrulamada, grup ağırlıkları her başlangıçta ufku bitmiş sonuçlarla.",
+          "properties": {
+            "a0": {"const": "fixed_internal_validation"},
+            "lambda": {"const": "fixed_internal_validation"},
+            "group_weights": {"const": "refit_each_origin_elapsed_outcomes"}
+          }
+        },
         "group_thresholds": {
           "type": "object",
           "required": ["zero_ratio_intermittent", "cv_split", "min_obs"],
@@ -243,9 +252,9 @@
             "lead_time_days": {"type": "integer", "minimum": 0},
             "review_days": {"type": "integer", "minimum": 0},
             "demand_over_lead_and_review": {"type": "number", "minimum": 0},
-            "safety_stock": {"type": "number", "minimum": 0},
-            "order_up_to": {"type": "number", "minimum": 0},
-            "pack_size": {"type": "number", "minimum": 0},
+            "safety_stock": {"type": "number", "minimum": 0, "description": "Emniyet stoku: L+R penceresindeki yalnızca eksik tahmin hatalarının (gerçekleşen − tahmin > 0) hizmet düzeyi yüzdeliği; pozitif hata yoksa 0."},
+            "order_up_to": {"type": "number", "minimum": 0, "description": "Denklem 6 sipariş üst sınırı S = D(L+R) + SS; paket katına YUVARLANMAMIŞTIR. Uygulama siparişi ⌈max(0, S − IP)⌉ paket olarak yalnızca bir kez yuvarlar."},
+            "pack_size": {"type": "number", "minimum": 0, "description": "Paket büyüklüğü (ürünün biriminde); yalnızca son sipariş miktarının yuvarlanmasında kullanılır."},
             "service_level": {"type": "number", "minimum": 0, "maximum": 1},
             "on_hand": {"type": ["number", "null"]},
             "suggested_order": {"type": ["number", "null"]}

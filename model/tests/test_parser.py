@@ -8,8 +8,8 @@ import pytest
 
 from dukkan_tahmin.config import Config
 from dukkan_tahmin.io_csv import load_canonical, parse_number, write_canonical, write_rows
-from dukkan_tahmin.io_report import ReportError, _locate_columns, convert_report, parse_report, parse_tr_number
-from dukkan_tahmin.quality import clean_sales, is_hesap, tr_upper
+from dukkan_tahmin.io_report import ReportError, convert_report, fold, map_columns, numeric, parse_report, parse_tr_number
+from dukkan_tahmin.quality import clean_sales, is_hesap, quality_warnings, tr_upper
 from dukkan_tahmin.synthetic import HEADER, generate, write_report
 
 
@@ -54,10 +54,13 @@ def test_duplicates_counted_not_dropped(tmp_path, small):
     pd.testing.assert_series_equal(_parsed_matrix(dropped), _truth_matrix(small.daily), check_names=False)
 
 
-def test_invalid_rows_counted(tmp_path, small):
+def test_invalid_rows_abort_unless_devam(tmp_path, small):
+    """As in sales-worker.js an impossible date aborts the import; --devam counts and continues."""
     xls = tmp_path / "r.xls"
     write_report(small, xls, n_duplicates=0, n_invalid=2)
-    data = convert_report(xls)
+    with pytest.raises(ReportError, match="2 satırda tarih veya sayı okunamadı"):
+        convert_report(xls)
+    data = convert_report(xls, allow_invalid=True)
     assert data.quality["invalid_rows"] == 2
 
 
@@ -97,9 +100,21 @@ def test_missing_header_rejected(tmp_path):
 
 def test_header_located_by_text_with_fallback():
     shuffled = ["MÜŞTERİ", "TUTAR", "BARKOD", "TARİH", "ÜRÜN ADI", "MİKTAR", "GRUP"]
-    m = _locate_columns(shuffled)
+    src, m = map_columns(shuffled)
+    assert src == "başlık"
     assert m["tutar"] == 1 and m["barkod"] == 2 and m["tarih"] == 3 and m["urun"] == 4 and m["miktar"] == 5
-    assert _locate_columns(HEADER)["tutar"] == 9
+    assert map_columns(HEADER)[1]["tutar"] == 9
+    # ASCII / lower-case spellings fold to the same header (regression: "MIKTAR" was rejected)
+    src, m = map_columns(["tarih", "Barkod", "URUN ADI", "MIKTAR", "Tutar"])
+    assert src == "başlık" and m == {"tarih": 0, "barkod": 1, "miktar": 3, "tutar": 4, "urun": 2}
+    assert fold("  Ürün   grubu ") == "URUN GRUBU" and fold("miktar") == "MIKTAR"
+    # TOPLAM wins over TUTAR (worker order); ÜRÜN GRUBU is the category, not the name; KASİYER ADI is no name
+    _, m = map_columns(["TARİH", "KASİYER ADI", "BARKOD", "ÜRÜN GRUBU", "ÜRÜN ADI", "MİKTAR", "TUTAR", "TOPLAM"])
+    assert m["tutar"] == 7 and m["kategori"] == 3 and m["urun"] == 4
+    # incomplete header: 13 cells -> fixed indexes, otherwise a Turkish error naming the columns
+    assert map_columns(["X"] * 4 + ["BARKOD"] + ["Y"] * 2 + ["MİKTAR"] + ["Z"] * 5)[0] == "sabit sıra"
+    with pytest.raises(ReportError, match="TARİH"):
+        map_columns(["BARKOD", "MİKTAR", "TUTAR", "ÜRÜN ADI"])
 
 
 def test_turkish_numbers_and_upper():
@@ -109,6 +124,64 @@ def test_turkish_numbers_and_upper():
     assert parse_number("12.5") == 12.5 and parse_number("1.234,5") == 1234.5
     with pytest.raises(ValueError):
         parse_tr_number("abc")
+
+
+@pytest.mark.parametrize(
+    "text,value",
+    [
+        ("0.75", 0.75), ("95.12", 95.12), (".5", 0.5), ("1234.56", 1234.56), ("-2.5", -2.5),  # dot decimal
+        ("1.234", 1234.0), ("1.234.567", 1234567.0),  # dots in 3-digit groups -> thousands
+        ("1.234,50", 1234.5), ("1234,5", 1234.5), (",5", 0.5), ("-0,5", -0.5), ("007", 7.0), ("12", 12.0),
+    ],
+)
+def test_numeric_matches_worker_rules(text, value):
+    """Regression: "0.75" was read as 75 and "95.12" as 9512 (every dot was deleted)."""
+    assert numeric(text) == pytest.approx(value)
+
+
+@pytest.mark.parametrize("text", ["", "-", "12.34,5", "1234.567", "1,2,3", "1.2.3", "5,", "1 234", "+5", "1,5a", "١٢"])
+def test_numeric_rejects_like_worker(text):
+    with pytest.raises(ValueError):
+        numeric(text)
+
+
+def _html(rows: list[list[str]], header: list[str] | None = None) -> str:
+    head = header or ["TARİH", "BARKOD", "ÜRÜN ADI", "MİKTAR", "BİRİM FİYAT", "TOPLAM", "MÜŞTERİ"]
+    tr = lambda cells, tag="td": "<tr>" + "".join(f"<{tag}>{c}</{tag}>" for c in cells) + "</tr>\n"  # noqa: E731
+    return "<html><table>" + tr(head, "th") + "".join(tr(r) for r in rows) + "</table></html>"
+
+
+def test_rows_with_extra_or_fewer_cells_kept_and_counted(tmp_path):
+    """Rows with >= the needed cells are kept (worker behaviour) and counted in the quality report."""
+    p = tmp_path / "r.xls"
+    p.write_text(
+        _html([
+            ["01.03.2026", "0012", "Peynir", "0.75", "200,00", "150,00", "Ayşe"],
+            ["01.03.2026", "869", "Ekmek", "3", "10", "30"],  # one cell short, still has all needed columns
+            ["02.03.2026", "869", "Ekmek", "2", "10", "20", "x", "fazla"],  # one cell extra
+            ["02.03.2026", "869", "Ekmek"],  # too short: skipped
+        ]),
+        encoding="utf-8",
+    )
+    d = convert_report(p)
+    assert d.quality["rows"] == 3 and d.quality["cell_count_mismatch_rows"] == 2
+    assert any("hücre sayısı" in w for w in quality_warnings(d.quality))
+    s = d.sales.set_index(["tarih", "barkod"])["miktar"]
+    assert s[(pd.Timestamp("2026-03-01"), "0012")] == pytest.approx(0.75)
+    assert d.sales["tutar"].sum() == pytest.approx(200.0)
+
+
+def test_zip_ignores_macos_metadata(tmp_path, small):
+    import zipfile
+
+    html = _html([["01.03.2026", "869", "Ekmek", "3", "10", "30", "-"]])
+    p = tmp_path / "mac.zip"
+    with zipfile.ZipFile(p, "w") as zf:
+        zf.writestr("__MACOSX/._rapor.xls", "junk")
+        zf.writestr("klasor/._rapor.xls", "junk")
+        zf.writestr("klasor/rapor.xls", html)
+    rows, stats = parse_report(p)
+    assert stats["file"] == "klasor/rapor.xls" and len(rows) == 1
     assert tr_upper("hesap içi") == "HESAP İÇİ"
     assert is_hesap("Hesap Satışı") and is_hesap("MANAV HESAP") and not is_hesap("Şampuan")
 

@@ -21,6 +21,15 @@ Rules implemented here (all counts go to the quality report):
   closed weekdays/dates are excluded from the missing-day list;
 * unit = ``adet`` unless quantities are fractional (then ``kg``); a ``birim``
   column, when present, wins and conflicts are reported.
+
+Leakage guard (``evaluation_cutoff=True``, used by ``tahmin``/``degerlendir``):
+the unit inference and the automatic closed-weekday detection look only at
+days *before* the first day of the external test area
+(:func:`internal_cutoff`, the same rule as ``backtest.make_plan``), so a
+fractional sale or a closure inside the test period cannot change the pilot
+set or the evaluation setup. Products first sold inside the test area (never
+pilot candidates) get their unit from all their lines. The unit inferred from
+the whole history is kept separately (``birim_tum``) for the final forecast.
 """
 
 from __future__ import annotations
@@ -90,25 +99,63 @@ def detect_closed_weekdays(
     return tuple(closed)
 
 
-def _infer_units(lines: pd.DataFrame) -> tuple[pd.Series, dict[str, dict[str, Any]], list[str]]:
+def internal_cutoff(start: pd.Timestamp, end: pd.Timestamp, cfg: Config) -> pd.Timestamp:
+    """First day of the external test area: the last ``test_months`` calendar
+    months (``max(1, n // 3)`` when the data spans fewer than 30 months).
+
+    ``backtest.make_plan`` uses this function, so the cut-off used for unit and
+    closed-day inference is exactly the start of the test area.
+    """
+    periods = pd.period_range(start, end, freq="M")
+    n = len(periods)
+    tm = cfg.test_months if n >= 30 else max(1, n // 3)
+    return max(periods[n - tm].to_timestamp(), pd.Timestamp(start).normalize())
+
+
+def _infer_units(
+    lines: pd.DataFrame, cutoff: pd.Timestamp | None = None
+) -> tuple[pd.Series, pd.Series, pd.Series, dict[str, dict[str, Any]], list[str]]:
+    """Per barcode: (unit used for evaluation, unit from all lines, declared unit,
+    detail, conflicts). With ``cutoff`` the evaluation unit only looks at lines
+    dated before it (all lines for products first sold on/after it)."""
     units: dict[str, str] = {}
+    units_full: dict[str, str] = {}
+    declared_units: dict[str, str] = {}
     detail: dict[str, dict[str, Any]] = {}
     conflicts: list[str] = []
     for bc, g in lines.groupby("barkod", sort=True):
-        q = g["miktar"].to_numpy(dtype=float)
+        q_all = g["miktar"].to_numpy(dtype=float)
+        before = g["tarih"].to_numpy() < np.datetime64(cutoff) if cutoff is not None else np.ones(len(g), bool)
+        only_test = not before.any()
+        q = q_all if only_test else q_all[before]
         frac = bool(_is_fractional(q).any())
+        frac_all = bool(_is_fractional(q_all).any())
         declared = {normalize_unit(u) for u in g["birim"]} - {""}
         if len(declared) == 1:
-            unit = declared.pop()
+            unit = unit_full = declared.pop()
+            declared_units[str(bc)] = unit
             source = "sütun"
-            if unit == "adet" and frac:
+            if unit == "adet" and frac_all:
                 conflicts.append(str(bc))
         else:
+            declared_units[str(bc)] = ""
             unit = "kg" if frac else "adet"
+            unit_full = "kg" if frac_all else "adet"
             source = "kesirli miktar" if frac else "tam sayı miktar"
+            if cutoff is not None:
+                source += " (yalnızca test alanı)" if only_test else " (test alanı öncesi)"
         units[str(bc)] = unit
-        detail[str(bc)] = {"unit": unit, "source": source, "fractional_lines": int(_is_fractional(q).sum())}
-    return pd.Series(units, dtype=object), detail, conflicts
+        units_full[str(bc)] = unit_full
+        detail[str(bc)] = {"unit": unit, "source": source, "fractional_lines": int(_is_fractional(q_all).sum())}
+        if unit_full != unit:
+            detail[str(bc)]["unit_full_history"] = unit_full
+    return (
+        pd.Series(units, dtype=object),
+        pd.Series(units_full, dtype=object),
+        pd.Series(declared_units, dtype=object),
+        detail,
+        conflicts,
+    )
 
 
 def clean_sales(
@@ -119,8 +166,14 @@ def clean_sales(
     columns: dict[str, Any] | None = None,
     source: str = "",
     catalog_barcodes: set[str] | None = None,
+    evaluation_cutoff: bool = True,
 ) -> CleanData:
-    """Apply the 2.2 rules and build the data-quality report."""
+    """Apply the 2.2 rules and build the data-quality report.
+
+    ``evaluation_cutoff=True`` restricts unit inference and closed-weekday
+    detection to the days before :func:`internal_cutoff` (see module doc);
+    ``False`` (report conversion) uses the whole file.
+    """
     cfg = config or Config()
     missing_cols = [c for c in REQUIRED if c not in rows.columns]
     if missing_cols:
@@ -151,9 +204,16 @@ def clean_sales(
     if lines.empty:
         raise ValueError("Ürün miktar serisine girecek satır kalmadı.")
 
-    units, unit_detail, unit_conflicts = _infer_units(lines)
+    cutoff = internal_cutoff(start, end, cfg) if evaluation_cutoff else None
+    if cutoff is not None and not (recorded < cutoff).any():
+        cutoff = None  # no internal area at all: nothing to protect, use everything
+    units, units_full, declared_units, unit_detail, unit_conflicts = _infer_units(lines, cutoff)
     last = lines.groupby("barkod", sort=True)[["urun", "kategori"]].last()
-    products = last.assign(birim=units.reindex(last.index).to_numpy())
+    products = last.assign(
+        birim=units.reindex(last.index).to_numpy(),
+        birim_tum=units_full.reindex(last.index).to_numpy(),
+        birim_beyan=declared_units.reindex(last.index).to_numpy(),
+    )
     products.index = products.index.astype(str)
     products.index.name = "barkod"
 
@@ -162,8 +222,14 @@ def clean_sales(
     )
 
     if cfg.closed_weekdays is None:
-        closed_wd = detect_closed_weekdays(recorded, start, end, cfg.closed_weekday_max_share)
-        closed_source = "otomatik"
+        if cutoff is not None:
+            closed_wd = detect_closed_weekdays(
+                recorded[recorded < cutoff], start, cutoff - pd.Timedelta(days=1), cfg.closed_weekday_max_share
+            )
+            closed_source = "otomatik (test alanı öncesi)"
+        else:
+            closed_wd = detect_closed_weekdays(recorded, start, end, cfg.closed_weekday_max_share)
+            closed_source = "otomatik"
     else:
         closed_wd = tuple(sorted(cfg.closed_weekdays))
         closed_source = "ayar"
@@ -205,6 +271,8 @@ def clean_sales(
         "products": int(len(products)),
         "units": {u: int((products["birim"] == u).sum()) for u in ("adet", "kg")},
         "unit_inference": unit_detail,
+        "inference_cutoff": cutoff.date().isoformat() if cutoff is not None else None,
+        "units_changed_in_test_area": sorted(b for b, d in unit_detail.items() if "unit_full_history" in d),
         "unit_conflicts": unit_conflicts,
         "name_conflicts": name_conflicts,
         "unmatched_barcodes": unmatched,
@@ -241,6 +309,16 @@ def quality_warnings(q: dict[str, Any]) -> list[str]:
         out.append(f"{q['duplicate_rows']} birebir yinelenen satır bulundu; {verb}.")
     if q.get("invalid_rows"):
         out.append(f"{q['invalid_rows']} satırda tarih veya sayı okunamadı; bu satırlar dışarıda kaldı.")
+    if q.get("cell_count_mismatch_rows"):
+        out.append(
+            f"{q['cell_count_mismatch_rows']} satırın hücre sayısı başlıktan farklı; gerekli sütunlar "
+            "bulunduğu için satırlar okundu, sütun kayması olmadığını kontrol edin."
+        )
+    if q.get("units_changed_in_test_area"):
+        out.append(
+            f"{len(q['units_changed_in_test_area'])} üründe birim test alanındaki kesirli satışlarla değişiyor; "
+            "değerlendirmede test alanı öncesindeki birim, son tahminde tüm geçmişten çıkan birim kullanıldı."
+        )
     if q.get("no_barcode_rows"):
         out.append(f"{q['no_barcode_rows']} satırda barkod yok; ürün serisine eşleştirilemedi.")
     if q.get("unit_conflicts"):
