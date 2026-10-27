@@ -1,50 +1,37 @@
-# Dükkan — Satış ve stok takip prototipi
+# Dükkan — Stok ve Satış Yönetimi
 
-Küçük işletmeler için satış analizi, barkodla stok girişi ve talep tahmini denemesi.
+Küçük işletmeler için sade, kırmızı temalı; bilgisayar, tablet ve telefona uyumlu web uygulaması prototipi.
 
-## Proje ekibi
-- Eslem Yılmaz — Proje geliştiricisi
-- Beyza Dönmez — Proje geliştiricisi
-- Emre Kişi — Akademik danışman
+## Özellikler
+- Ürün, barkod, fiyat ve stok yönetimi; kategori simgeleri.
+- Barkod veya ürün seçimiyle satış sepeti; nakit, kart ve veresiye kayıtları.
+- İşletme içi tüketimi satıştan ayrı kaydetme.
+- Müşteri borçları, tahsilat ve işlem geçmişi.
+- Gün sonu özeti, en çok satılan ürünler ve kritik stoklar.
+- Geçmiş satış raporlarını yükleme ve tablet/telefon görünümünü inceleme.
 
-## Bilgisayarda açma
-ZIP dosyasını tamamen çıkarın. Python 3 kurulu Windows bilgisayarda
-`BASLAT_WINDOWS.bat` dosyasına çift tıklayın. Tarayıcı açılır;
-komut penceresini kullanım boyunca açık tutun.
-Mac/Linux: bu klasörde `python3 baslat.py` çalıştırın.
-Ek Python paketi gerekmez. `index.html` dosyasına doğrudan çift tıklamak yerine
-başlatıcıyı kullanın; dosya aktarımı Worker üzerinden çalışır.
+## Çalıştırma
+Dosyaları aynı klasörde tutun. Python kuruluysa bu klasörde terminal açıp:
 
-## Bu sürüm
-- Kırmızı-beyaz arayüz, telefon ön izlemesi ve duyarlı ekran düzeni.
-- Ekmek, içecek, süt ürünleri, tütün ve diğer kategoriler için ortak SVG ikonları.
-- Gün sonu ekranında en çok satılan ürünler, miktar, tutar ve gelir payı.
-- Miktara veya satış tutarına göre sıralama; gerçek veri varsa tarih seçimi.
-- Ürün ekleme, barkodla ürün bulma, stok girişi, düşük stok filtresi ve CSV aktarımı.
-- HTML tabanlı market XLS raporunu veya tek rapor içeren ZIP dosyasını okuma.
-- Gerçek satış detayları ve son 56 kayıtlı gün üzerinde basit tahmin testi.
-- Asistan bildirim ayarları ve örnek mesajlar.
+```sh
+python -m http.server 8000
+```
 
-## Gerçek veriyle deneme
-Raporlar > Gerçek satış raporuyla deneme alanından market raporunuzu seçin.
-Satış raporları bu pakete dahil değildir. Yeni satış dosyası eski satış raporunun
-yerini alır; stok listenizi değiştirmez. Veriler bu tarayıcıda tutulur;
-cihazlar arasında otomatik eşitleme yoktur.
+Tarayıcıdan http://localhost:8000 adresini açın. Dosyayı çift tıklamak yerine yerel sunucu kullanın; rapor işleme gibi tarayıcı özellikleri buna ihtiyaç duyabilir.
 
-## Sınırlar
-- Veri yüklenmeden görülen satışlar örnektir.
-- Güncel stok, geçmiş satıştan hesaplanmaz; ayrı stok kaydı gerekir.
-- XGBoost ve özgün matematiksel ML modülü henüz bağlı değildir.
-- Test yöntemi, aynı haftanın gününe ait geçmiş en fazla 8 gözlemin ortalamasıdır.
-  Her tahminde yalnızca önceki tarihler kullanılır.
-- Hesap ve negatif işlemler talep serisinden çıkarılır, günlük ciroda korunur.
-- Kayıt bulunmayan günler test edilmez; ürünün bulunmadığı kayıtlı günler
-  ön denemede sıfır sayılır. Stok tükenmeleri henüz ayrıştırılmamıştır.
-- Farklı birimler miktar sıralamasını etkiler; tutara göre sıralama da sunulur.
-- n8n bağlantısı, gerçek otomatik gönderim ve fiziksel tablet/okuyucu testi yoktur.
+## GitHub'a güncelleme yükleme
+1. ZIP'i bilgisayarınızda ayıklayın.
+2. Mevcut GitHub deponuzda Add file → Upload files bölümünü açın.
+3. Bu ZIP'in içindeki dosyaları ve assets klasörünü birlikte yükleyin. ZIP'in kendisini yüklemeyin.
+4. Aynı adlı dosyaların güncelleneceğini kontrol edip Commit changes seçin.
+5. Ana index.html deponun kökünde olmalıdır. Mevcut README.md bu dosyayla değişir; kendi eklediğiniz açıklamalar varsa önce birleştirin.
 
-## GitHub'a yükleme
-ZIP'i çıkarıp klasörün içindeki kaynak dosyaları yükleyin; ZIP'i yüklemeyin.
-README bu pakette bulunduğundan mevcut README'nizi bununla değiştirebilirsiniz.
-Gerçek işletme raporlarını ve kişisel verileri depoya eklemeyin.
-GitHub'daki değişiklikler mevcut yayınlanan uygulamaya otomatik yansımaz.
+## Kullanım sınırları
+Bu sürüm prototiptir. Kayıtlar kullanılan tarayıcıda yerel olarak tutulur; cihazlar arasında ortak veritabanı veya otomatik eşitleme yoktur. Tarayıcı verilerini temizlemek kayıtları silebilir. ZIP, tarayıcıda yaptığınız satışları ve yüklediğiniz verileri içermez.
+
+Kart seçeneği yalnızca ödeme türünü kaydeder; banka işlemi veya mali fiş üretmez. Barkod akışı klavye gibi çalışan USB/Bluetooth okuyucular için tasarlanmıştır; fiziksel tablet/okuyucu uyumu ayrıca denenmelidir.
+
+Mevcut tahmin ekranı, eğitilmiş ve doğrulanmış XGBoost modeli anlamına gelmez. Özgün tahmin modülü, walk-forward değerlendirme, ortak veritabanı ve n8n/AI agent bildirim bağlantıları sonraki geliştirme aşamalarıdır; bu pakette etkin değildir.
+
+## Proje
+TÜBİTAK 2209-A başvurusu kapsamında geliştirilen çalışma prototipi.
