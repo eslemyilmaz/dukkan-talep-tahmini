@@ -5,11 +5,24 @@ import os
 import threading
 import webbrowser
 
+
+class DukkanHandler(SimpleHTTPRequestHandler):
+    """PWA dosyalari icin dogru MIME turlerini de bilen dosya sunucusu."""
+
+    extensions_map = {
+        **SimpleHTTPRequestHandler.extensions_map,
+        '.webmanifest': 'application/manifest+json',
+        '.json': 'application/json',
+        '.js': 'text/javascript',
+        '.svg': 'image/svg+xml',
+    }
+
+
 def main():
     os.chdir(Path(__file__).resolve().parent)
     address = ('127.0.0.1', 8765)
     try:
-        server = ThreadingHTTPServer(address, SimpleHTTPRequestHandler)
+        server = ThreadingHTTPServer(address, DukkanHandler)
     except OSError:
         print('8765 portu kullaniliyor. Onceki Dukkan penceresini kapatip tekrar deneyin.')
         input('Cikmak icin Enter...')
@@ -24,6 +37,7 @@ def main():
         pass
     finally:
         server.server_close()
+
 
 if __name__ == '__main__':
     main()

@@ -1,0 +1,30 @@
+# İşletme verileri ve yerel dosyalar
+*.xls
+*.xlsx
+*.csv
+*.zip
+*.db
+*.sqlite*
+data/
+upload/
+.env
+.env.*
+
+# Sentetik/örnek veri dosyaları depoda tutulabilir
+!model/tests/fixtures/**
+!model/ornek/**
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+.pytest_cache/
+.ipynb_checkpoints/
+
+# Node
+node_modules/
+
+# İşletim sistemi
+.DS_Store
+Thumbs.db
