@@ -1,12 +1,18 @@
-/* Register: the authoritative local snapshot (products, entries, customers), POS screen, product
-   price/barcode/cost editor, history, credit accounts and the register-based overview parts.
-   Every write goes through commitRegister(): Web Lock -> read latest -> mutate -> persist -> adopt. */
+/* Register: the authoritative local records (products, entries, customers), POS screen, product
+   price/barcode/cost editor, history, credit accounts, backup/restore and the register-based overview parts.
+   Records live in IndexedDB (storage.js). In memory: `reg` (the meta record: everything except entries),
+   customer balances, and the entries of the days pages have loaded. Every write goes through
+   writeRegister(): Web Lock -> one readwrite transaction (read meta, decide, write) -> adopt -> broadcast. */
 "use strict";
 
-const REGISTER_KEY = "dukkan-register-v1",
-  WRITER_KEY = "dukkan-register-writer";
+const LEGACY_KEY = "dukkan-register-v1",
+  LEGACY_COPY = "dukkan-register-v1-migrated",
+  writer = isPreview ? "preview" : "main";
 let reg = null,
   regProblem = "",
+  balances = {},
+  dayCache = new Map(),
+  regChannel = null,
   cart = [],
   cartId = uid(),
   posMode = "sale",
@@ -19,118 +25,254 @@ let reg = null,
   posBusy = false,
   collecting = false;
 
-// ---------- Snapshot storage ----------
-function parseRegister(raw) {
-  let s = JSON.parse(raw);
-  if (
-    s?.version !== 1 ||
-    !Array.isArray(s.products) ||
-    !Array.isArray(s.entries) ||
-    !Array.isArray(s.customers)
-  )
-    throw Error("Kasa kayıt biçimi okunamadı.");
-  return s;
-}
-function readRegister() {
-  let raw = localStorage.getItem(REGISTER_KEY);
-  return raw ? parseRegister(raw) : null;
-}
-function adopt(s) {
-  reg = s;
-  products = s.products.map((p) => ({ ...p }));
-}
-function persistRegister(s) {
-  // Lets other documents tell a write from the phone/tablet preview apart from a real second tab.
-  try {
-    localStorage.setItem(WRITER_KEY, isPreview ? "preview" : "main");
-  } catch {}
-  localStorage.setItem(REGISTER_KEY, JSON.stringify(s));
-  adopt(s);
-  try {
-    localStorage.setItem("dukkan-products", JSON.stringify(products));
-  } catch {}
+// ---------- Records ----------
+function adopt(meta) {
+  reg = meta;
+  products = meta.products.map((p) => ({ ...p }));
 }
 function withRegisterLock(fn) {
   return navigator.locks ? navigator.locks.request("dukkan-register-write", fn) : Promise.resolve().then(fn);
 }
-// mutator(latest) returns the next snapshot (it must not modify `latest`). Resolves with the committed
-// snapshot; on failure re-adopts the stored snapshot and rejects with a user-facing message.
-async function commitRegister(mutator) {
+function storageMessage(e) {
+  return e?.name === "QuotaExceededError"
+    ? "Tarayıcı depolama alanı doldu. Yedek alıp eski verileri temizleyin."
+    : e?.message || String(e);
+}
+// work(t, meta) runs inside the transaction and returns { meta, entry? }: the next meta record (it must not
+// modify `meta`) and at most one new entry. Both are written in the same transaction, so a commit is atomic.
+// On failure the stored meta is re-adopted and the promise rejects with a user-facing message.
+async function writeRegister(work) {
+  if (regProblem) throw Error(regProblem);
   try {
-    return await withRegisterLock(() => {
-      if (regProblem) throw Error(regProblem);
-      let latest = readRegister();
-      if (!latest) throw Error("Kasa kaydı bulunamadı.");
-      let next = mutator(latest);
-      persistRegister(next);
-      return next;
-    });
+    let out = await withRegisterLock(() =>
+      Store.transaction(["meta", "entries"], "readwrite", async (t) => {
+        let out = await work(t, Store.checkMeta(await t.get("meta", "register")));
+        t.put("meta", out.meta, "register");
+        t.put("meta", writer, "writer");
+        if (out.entry) t.put("entries", out.entry);
+        return out;
+      }),
+    );
+    adopt(out.meta);
+    if (out.entry) remember(out.entry);
+    announce();
+    return out;
   } catch (e) {
-    if (!regProblem)
-      try {
-        let s = readRegister();
-        if (s) adopt(s);
-      } catch {}
-    throw e;
+    try {
+      adopt(Store.checkMeta(await Store.get("meta", "register")));
+    } catch {}
+    throw Error(storageMessage(e));
   }
 }
-// Product edits: fn(products, draft) mutates a copy of the latest snapshot; one revision per call.
+// One sale / internal use / collection. RegisterCore.commit gets the meta record plus only the entries it
+// reads for this request (see Store.commitScope): the stored entry with the same id, if any, so the core
+// rejects the duplicate itself, and for a collection that customer's entries for balance(). Resolves with
+// the new entry.
+async function commitEntry(request) {
+  let out = await writeRegister(async (t, meta) => {
+    let need = Store.commitScope(request),
+      known = need.customerId ? await t.getAll("entries", need.customerId, { index: "customerId" }) : [];
+    if (need.id && !known.some((e) => e.id === need.id)) {
+      let same = await t.get("entries", need.id);
+      if (same) known.push(same);
+    }
+    let { entries, ...next } = RegisterCore.commit({ ...meta, entries: known }, request);
+    return { meta: next, entry: entries.at(-1) };
+  });
+  return out.entry;
+}
+// Product edits: fn(products, draft) mutates a copy of the latest meta record; one revision per call.
 function updateProducts(fn) {
-  return commitRegister((latest) => {
-    let next = structuredClone(latest);
+  return writeRegister((t, meta) => {
+    let next = structuredClone(meta);
     fn(next.products, next);
-    next.rev = latest.rev + 1;
-    return next;
+    next.rev = meta.rev + 1;
+    return { meta: next };
   });
 }
-function initRegister() {
-  try {
-    let saved = readRegister();
-    if (!saved)
-      persistRegister({
-        version: 1,
-        rev: 0,
-        nextNumber: 1,
-        products: products.map((p) => ({ ...p, id: p.id || uid(), cost: p.cost ?? null })),
-        entries: [],
-        customers: [],
-      });
-    else if (saved.products.some((p) => !p.id))
-      // Legacy products without an id get one, once; everything else is keyed by id.
-      persistRegister({
-        ...saved,
-        rev: saved.rev + 1,
-        products: saved.products.map((p) => (p.id ? p : { ...p, id: uid() })),
-      });
-    else adopt(saved);
-  } catch (e) {
-    regProblem = "Kasa kayıtları açılamadı. Tarayıcı depolamasını kontrol edin; mevcut veriler silinmedi.";
-    products = products.map((p) => ({ ...p, id: p.id || uid() }));
-    reg = {
-      version: 1,
-      rev: 0,
-      nextNumber: 1,
-      products: products.map((p) => ({ ...p })),
-      entries: [],
-      customers: [],
-    };
-  }
-  window.addEventListener("storage", onRegisterStorage);
+
+// ---------- Caches: balances and per-day entries ----------
+async function loadBalances() {
+  if (regProblem) return;
+  let byCustomer = {};
+  for (let e of await Store.getAll("entries", null, { index: "customerId" }))
+    (byCustomer[e.customerId] ??= []).push(e);
+  balances = Object.fromEntries(
+    Object.entries(byCustomer).map(([id, list]) => [id, RegisterCore.balance({ entries: list }, id)]),
+  );
 }
-function onRegisterStorage(e) {
-  if (e.key !== REGISTER_KEY || !e.newValue) return;
+const customerBalance = (id) => balances[id] || 0;
+const byNumber = (a, b) => a.number - b.number;
+// Loads the missing dates with one range query on the "date" index (from the first to the last missing
+// date; entries of dates in between that are already cached are skipped). Returns nothing when every date
+// is cached (the router then renders synchronously), else a promise. replace: drop the whole cache once
+// the requested dates have been read (after another tab wrote), so nothing renders from an emptied cache.
+function loadDays(dates, replace = false) {
+  if (dayCache.size > 60) dayCache.clear();
+  let sorted = [...new Set(replace ? dates : dates.filter((d) => !dayCache.has(d)))].sort();
+  if (regProblem || !sorted.length) return null;
+  return Store.getAll("entries", IDBKeyRange.bound(sorted[0], sorted.at(-1)), { index: "date" }).then(
+    (list) => {
+      let fresh = new Map(sorted.map((d) => [d, []]));
+      for (let e of list) fresh.get(e.date)?.push(e);
+      if (replace) dayCache = new Map();
+      for (let [d, day] of fresh) dayCache.set(d, day.sort(byNumber));
+    },
+  );
+}
+// Entries of one date in number order; empty until loadDays() has run for it.
+const dayEntries = (date) => dayCache.get(date) || [];
+const registerDaily = (date) => RegisterCore.daily({ entries: dayEntries(date) }, date);
+function remember(entry) {
+  let day = dayCache.get(entry.date);
+  if (day && !day.some((e) => e.id === entry.id)) day.push(entry);
+  if (entry.customerId)
+    balances[entry.customerId] =
+      customerBalance(entry.customerId) + RegisterCore.balance({ entries: [entry] }, entry.customerId);
+}
+// Entries between two dates (inclusive), in number order, for exports and reports.
+async function registerEntries(from, to) {
+  if (regProblem) return [];
+  return (await Store.getAll("entries", IDBKeyRange.bound(from, to), { index: "date" })).sort(byNumber);
+}
+// Re-reads everything held in memory: at boot, after another tab's commit and after a restore. Other cached
+// days are dropped; the router's next load() reads the ones its page needs.
+async function reloadRegister() {
+  adopt(Store.checkMeta(await Store.get("meta", "register")));
+  settings.adopt(await Store.get("meta", "settings"));
+  await loadBalances();
+  await loadDays([todayTR()], true);
+}
+
+// ---------- Boot: open, migrate, create ----------
+const seedProducts = () =>
+  (readJSON("dukkan-products", null) || sampleProducts()).map((p) => ({
+    ...p,
+    id: p.id || uid(),
+    cost: p.cost ?? null,
+  }));
+// Under the lock, in one transaction: keep the stored register; else import the old localStorage blob
+// (meta + every entry); else create a register from the seed products. The settings seed is written the
+// same way. Returns the legacy blob when one was found, so the caller can rename it.
+async function openRegister() {
+  let legacy = readKey(LEGACY_KEY);
+  await Store.transaction(["meta", "entries"], "readwrite", async (t) => {
+    if (!(await t.get("meta", "settings"))) t.put("meta", settings.snapshot(), "settings");
+    if (await t.get("meta", "register")) return;
+    let meta, entries;
+    if (legacy) {
+      ({ meta, entries } = Store.splitRegister(JSON.parse(legacy)));
+      // Legacy products without an id get one, once; everything else is keyed by id.
+      if (meta.products.some((p) => !p.id))
+        meta = {
+          ...meta,
+          rev: meta.rev + 1,
+          products: meta.products.map((p) => (p.id ? p : { ...p, id: uid() })),
+        };
+    } else {
+      meta = { version: 1, rev: 0, nextNumber: 1, products: seedProducts(), customers: [] };
+      entries = [];
+    }
+    t.put("meta", meta, "register");
+    for (let e of entries) t.put("entries", e);
+  });
+  return legacy;
+}
+// The imported blob stays as a safety copy under a new name; it is never deleted. If localStorage has no
+// room for the copy, the blob stays under its old name (the register in IndexedDB wins from now on).
+function renameLegacy(raw) {
   try {
-    adopt(parseRegister(e.newValue));
+    localStorage.setItem(LEGACY_COPY, raw);
+    localStorage.removeItem(LEGACY_KEY);
+  } catch (e) {
+    console.warn("Eski kasa kaydı yeniden adlandırılamadı; yerinde bırakıldı.", e);
+  }
+}
+async function initRegister() {
+  try {
+    await Store.openDb();
+    let legacy = await withRegisterLock(openRegister);
+    if (legacy) renameLegacy(legacy);
+    await reloadRegister();
+  } catch (e) {
+    console.warn("Kasa kayıtları açılamadı:", e);
+    regProblem = "Kasa kayıtları açılamadı. Tarayıcı depolamasını kontrol edin; mevcut veriler silinmedi.";
+    reg = { version: 1, rev: 0, nextNumber: 1, products: seedProducts(), customers: [] };
+    adopt(reg);
+    return;
+  }
+  if (typeof BroadcastChannel === "function") {
+    regChannel = new BroadcastChannel("dukkan-register");
+    regChannel.onmessage = onRegisterMessage;
+  }
+  Store.requestPersistence();
+  if (debug) {
+    debug.commit = commitEntry;
+    debug.products = () => products;
+  }
+}
+// IndexedDB writes fire no `storage` event; other tabs (and the preview frame) hear about commits here.
+function announce() {
+  regChannel?.postMessage({ rev: reg.rev, writer });
+}
+async function onRegisterMessage({ data }) {
+  if (!data || typeof data.rev !== "number") return;
+  try {
+    await reloadRegister();
   } catch {
     return;
   }
-  render();
-  // The preview iframe shares this shop's records; its writes are not news for the main screen.
-  let fromPreview = false;
+  await show();
+  // The preview frame shares this shop's records; its writes are not news for the main screen.
+  if (!isPreview && data.writer !== "preview") toast("Kayıtlar diğer sekmeden güncellendi.");
+}
+
+// ---------- Backup / restore (UI in assistant.js) ----------
+// One readonly transaction, so meta, entries and settings are from the same moment.
+async function registerBackup(includeReport) {
+  if (regProblem) throw Error(regProblem);
+  let stores = includeReport ? ["meta", "entries", "report"] : ["meta", "entries"],
+    data = await Store.transaction(stores, "readonly", async (t) => ({
+      meta: Store.checkMeta(await t.get("meta", "register")),
+      entries: await t.getAll("entries", null, { index: "number" }),
+      settings: (await t.get("meta", "settings")) ?? null,
+      report: includeReport ? ((await t.get("report", "report")) ?? null) : null,
+    }));
+  return Store.buildBackup({ ...data, exportedAt: new Date().toISOString() });
+}
+async function registerCounts() {
+  return regProblem ? null : { nextNumber: reg.nextNumber, entries: await Store.count("entries") };
+}
+// backup: Store.readBackup() output. Replaces meta, every entry and settings (and the report when the
+// backup has one) in one transaction. rev keeps growing so other tabs and later commits see a newer record.
+async function restoreRegister(backup, override) {
+  if (regProblem) throw Error(regProblem);
+  let stores = backup.report ? ["meta", "entries", "report"] : ["meta", "entries"];
   try {
-    fromPreview = localStorage.getItem(WRITER_KEY) === "preview";
-  } catch {}
-  if (!isPreview && !fromPreview) toast("Kayıtlar diğer sekmeden güncellendi.");
+    await withRegisterLock(() =>
+      Store.transaction(stores, "readwrite", async (t) => {
+        let current = Store.checkMeta(await t.get("meta", "register")),
+          refusal = Store.restoreRefusal(
+            backup.summary,
+            { nextNumber: current.nextNumber, entries: await t.count("entries") },
+            override,
+          );
+        if (refusal) throw Error(refusal);
+        t.clear("entries");
+        for (let e of backup.entries) t.put("entries", e);
+        t.put("meta", { ...backup.meta, rev: Math.max(current.rev, backup.meta.rev) + 1 }, "register");
+        t.put("meta", writer, "writer");
+        if (backup.settings) t.put("meta", backup.settings, "settings");
+        if (backup.report) t.put("report", backup.report, "report");
+      }),
+    );
+  } catch (e) {
+    throw Error(storageMessage(e));
+  }
+  resetCart();
+  await reloadRegister();
+  if (backup.report) activateSales(backup.report);
+  announce();
 }
 
 // ---------- POS ----------
@@ -203,7 +345,7 @@ function posScreen() {
           )
           .join(
             "",
-          )}</div>${posPayment === "credit" ? `<label class="field">Müşteri hesabı<select id="posCustomer" onchange="setPosCustomer(this.value)"><option value="">Müşteri seçin</option>${reg.customers.map((c) => `<option value="${esc(c.id)}" ${posCustomer === c.id ? "selected" : ""}>${esc(c.name)} · ${c.id.slice(0, 4)} · ${moneyKurus(RegisterCore.balance(reg, c.id))}</option>`).join("")}<option value="new" ${posCustomer === "new" ? "selected" : ""}>+ Yeni müşteri</option></select></label>${posCustomer === "new" ? `<label class="field">Yeni müşteri adı<input maxlength="80" value="${esc(posNewName)}" oninput="posNewName=this.value" placeholder="Ad / hesap adı"></label>` : ""}<p class="muted">Satış tutarı müşteri borcuna eklenir; şu an tahsilat yapılmaz.</p>` : ""}`
+          )}</div>${posPayment === "credit" ? `<label class="field">Müşteri hesabı<select id="posCustomer" onchange="setPosCustomer(this.value)"><option value="">Müşteri seçin</option>${reg.customers.map((c) => `<option value="${esc(c.id)}" ${posCustomer === c.id ? "selected" : ""}>${esc(c.name)} · ${c.id.slice(0, 4)} · ${moneyKurus(customerBalance(c.id))}</option>`).join("")}<option value="new" ${posCustomer === "new" ? "selected" : ""}>+ Yeni müşteri</option></select></label>${posCustomer === "new" ? `<label class="field">Yeni müşteri adı<input maxlength="80" value="${esc(posNewName)}" oninput="posNewName=this.value" placeholder="Ad / hesap adı"></label>` : ""}<p class="muted">Satış tutarı müşteri borcuna eklenir; şu an tahsilat yapılmaz.</p>` : ""}`
       : `<div class="internalWarning">Stok azalır. Satış tutarı ve müşteri borcu oluşmaz.</div><label class="field">Kullanım açıklaması<textarea maxlength="300" aria-label="Kullanım açıklaması" oninput="posNote=this.value" placeholder="Örn. İşletmede tüketildi">${esc(posNote)}</textarea></label><p class="muted">Alış maliyeti bilinen ürünler için tüketim maliyeti ayrıca kaydedilir.</p>`
   }<button class="primary checkout" onclick="completeRegister()" ${!cart.length || posBusy || regProblem ? "disabled" : ""}>${posBusy ? "Kaydediliyor…" : posMode === "sale" ? "✓ Satışı tamamla" : "✓ Kullanımı kaydet"}</button><p class="receiptBodyNote">Stok yalnızca işlem tamamlandığında değişir. Sepeti temizlemek stoğu etkilemez.</p></div></section></div>`;
 }
@@ -302,22 +444,20 @@ async function completeRegister() {
   document.querySelector(".checkout")?.setAttribute("disabled", "");
   let failure = "";
   try {
-    await commitRegister((latest) =>
-      RegisterCore.commit(latest, {
-        id: cartId,
-        kind: posMode,
-        payment: posPayment,
-        items: cart.map((p) => ({ ...p })),
-        customerId: posCustomer === "new" ? null : posCustomer,
-        newCustomer:
-          posMode === "sale" && posPayment === "credit" && posCustomer === "new"
-            ? { id: uid(), name: posNewName }
-            : null,
-        note: posNote,
-        date: todayTR(),
-        time: timeTR(),
-      }),
-    );
+    await commitEntry({
+      id: cartId,
+      kind: posMode,
+      payment: posPayment,
+      items: cart.map((p) => ({ ...p })),
+      customerId: posCustomer === "new" ? null : posCustomer,
+      newCustomer:
+        posMode === "sale" && posPayment === "credit" && posCustomer === "new"
+          ? { id: uid(), name: posNewName }
+          : null,
+      note: posNote,
+      date: todayTR(),
+      time: timeTR(),
+    });
     let wasInternal = posMode === "internal";
     resetCart();
     registerDate = todayTR();
@@ -382,10 +522,19 @@ function customerName(id) {
 function receiptDetails(t) {
   return `<details class="historyDetail"><summary><span><strong>#${String(t.number).padStart(4, "0")} · ${kindNames[t.kind]}</strong><br>${esc(t.date)} · ${esc(t.time)}${t.customerId ? " · " + esc(customerName(t.customerId)) : ""}</span><span class="pill ${t.kind === "sale" ? "ok" : ""}">${t.kind === "internal" ? "Ciroya eklenmez" : moneyKurus(t.total)}${t.payment ? " · " + paymentNames[t.payment] : ""}</span></summary>${t.items.length ? `<div class="tablewrap"><table><thead><tr><th>Ürün</th><th>Miktar</th><th>Tutar</th></tr></thead><tbody>${t.items.map((p) => `<tr><td>${esc(p.name)}</td><td>${p.q}</td><td>${t.kind === "sale" ? moneyKurus(p.total) : "—"}</td></tr>`).join("")}</tbody></table></div>` : ""}${t.note ? `<p class="muted">Açıklama: ${esc(t.note)}</p>` : ""}${t.kind === "internal" ? `<p class="muted">Tüketim maliyeti: ${t.cost === null ? "Alış maliyeti eksik; hesaplanamadı." : moneyKurus(t.cost)}</p>` : ""}</details>`;
 }
-function showHistory() {
+// The last 50 entries by number, newest first, straight from the "number" index.
+async function showHistory() {
+  let list;
+  try {
+    list = regProblem
+      ? []
+      : await Store.getAll("entries", null, { index: "number", direction: "prev", limit: 50 });
+  } catch (e) {
+    return toast("Son işlemler okunamadı: " + storageMessage(e));
+  }
   modal(
     "Son işlemler",
-    `<p class="muted">Bu tarayıcıdaki son 50 tamamlanmış işlem. Sepette bekleyen ürünler kaydedilmiş satış değildir.</p>${reg.entries.length ? [...reg.entries].reverse().slice(0, 50).map(receiptDetails).join("") : '<div class="empty">Henüz tamamlanmış işlem yok.</div>'}`,
+    `<p class="muted">Bu tarayıcıdaki son 50 tamamlanmış işlem. Sepette bekleyen ürünler kaydedilmiş satış değildir.</p>${list.length ? list.map(receiptDetails).join("") : '<div class="empty">Henüz tamamlanmış işlem yok.</div>'}`,
   );
 }
 function creditScreen() {
@@ -395,13 +544,13 @@ function creditScreen() {
       "Müşteri borçları ve sonradan yapılan tahsilatlar.",
       `<button onclick="navigate('sales')">+ Yeni satış</button>`,
     ) +
-    `<div class="reportBanner">Veresiye satış ciroya bir kez eklenir. Sonraki borç ödemeleri tahsilattır; yeni satış oluşturmaz.</div><div class="creditCards">${reg.customers.length ? reg.customers.map((c) => `<section class="card creditCard"><h2>${esc(c.name)}</h2><p class="muted">Hesap ${c.id.slice(0, 8)}</p><div class="value">${moneyKurus(RegisterCore.balance(reg, c.id))}</div><p class="muted">Kalan borç</p><button class="primary" style="margin-top:15px" onclick="collectDebt('${esc(c.id)}')" ${RegisterCore.balance(reg, c.id) > 0 ? "" : "disabled"}>Tahsilat kaydet</button></section>`).join("") : '<section class="card panel"><h2>Henüz müşteri hesabı yok</h2><p class="subtitle">Satış ekranında Veresiye → Yeni müşteri seçerek ilk hesabı oluşturun.</p></section>'}</div>`
+    `<div class="reportBanner">Veresiye satış ciroya bir kez eklenir. Sonraki borç ödemeleri tahsilattır; yeni satış oluşturmaz.</div><div class="creditCards">${reg.customers.length ? reg.customers.map((c) => `<section class="card creditCard"><h2>${esc(c.name)}</h2><p class="muted">Hesap ${c.id.slice(0, 8)}</p><div class="value">${moneyKurus(customerBalance(c.id))}</div><p class="muted">Kalan borç</p><button class="primary" style="margin-top:15px" onclick="collectDebt('${esc(c.id)}')" ${customerBalance(c.id) > 0 ? "" : "disabled"}>Tahsilat kaydet</button></section>`).join("") : '<section class="card panel"><h2>Henüz müşteri hesabı yok</h2><p class="subtitle">Satış ekranında Veresiye → Yeni müşteri seçerek ilk hesabı oluşturun.</p></section>'}</div>`
   );
 }
 function collectDebt(id) {
   modal(
     "Borç tahsilatı",
-    `<form onsubmit="saveCollection(event,'${esc(id)}')"><h3>${esc(customerName(id))}</h3><p>Kalan borç: <strong>${moneyKurus(RegisterCore.balance(reg, id))}</strong></p><label class="field">Ödenen tutar (TL)<input name="amount" type="number" min="0.01" max="${RegisterCore.balance(reg, id) / 100}" step="0.01" required></label><label class="field">Tahsilat türü<select name="payment"><option value="cash">Nakit</option><option value="card">Kart</option></select></label><p class="muted">Bu kayıt müşteri borcunu azaltır. Stok ve satış cirosu değişmez.</p><p id="collectionError" class="danger" role="alert"></p><button class="primary">Tahsilatı kaydet</button></form>`,
+    `<form onsubmit="saveCollection(event,'${esc(id)}')"><h3>${esc(customerName(id))}</h3><p>Kalan borç: <strong>${moneyKurus(customerBalance(id))}</strong></p><label class="field">Ödenen tutar (TL)<input name="amount" type="number" min="0.01" max="${customerBalance(id) / 100}" step="0.01" required></label><label class="field">Tahsilat türü<select name="payment"><option value="cash">Nakit</option><option value="card">Kart</option></select></label><p class="muted">Bu kayıt müşteri borcunu azaltır. Stok ve satış cirosu değişmez.</p><p id="collectionError" class="danger" role="alert"></p><button class="primary">Tahsilatı kaydet</button></form>`,
   );
 }
 async function saveCollection(e, id) {
@@ -413,17 +562,15 @@ async function saveCollection(e, id) {
     btn = form.querySelector("button");
   btn.disabled = true;
   try {
-    await commitRegister((latest) =>
-      RegisterCore.commit(latest, {
-        id: uid(),
-        kind: "collection",
-        customerId: id,
-        amount: d.get("amount"),
-        payment: d.get("payment"),
-        date: todayTR(),
-        time: timeTR(),
-      }),
-    );
+    await commitEntry({
+      id: uid(),
+      kind: "collection",
+      customerId: id,
+      amount: d.get("amount"),
+      payment: d.get("payment"),
+      date: todayTR(),
+      time: timeTR(),
+    });
     closeModal();
     render();
     toast("Tahsilat kaydedildi; ciro değişmedi.");
@@ -450,19 +597,25 @@ const creditPage = {
   id: "credit",
   label: "Veresiye",
   icon: "credit",
+  // Balances are kept current after each commit; entering the page re-reads them from the customerId index.
+  load: loadBalances,
   render: creditScreen,
   badge: () => "Bu cihaz · yerel kayıt",
 };
 
 // ---------- Overview parts (used by overview.js when no report is loaded) ----------
+// Today and the six days before it, oldest first (Türkiye dates).
+function lastSevenDays() {
+  return Array.from({ length: 7 }, (_, i) => {
+    let dt = new Date(todayTR() + "T12:00:00Z");
+    dt.setUTCDate(dt.getUTCDate() - 6 + i);
+    return dt.toISOString().slice(0, 10);
+  });
+}
+// Needs loadDays(lastSevenDays()) (overviewPage.load).
 function registerOverviewParts() {
-  let d = RegisterCore.daily(reg, todayTR()),
-    vals = Array.from({ length: 7 }, (_, i) => {
-      let dt = new Date(todayTR() + "T12:00:00Z");
-      dt.setUTCDate(dt.getUTCDate() - 6 + i);
-      let day = dt.toISOString().slice(0, 10);
-      return { day, value: RegisterCore.daily(reg, day).revenue };
-    }),
+  let d = registerDaily(todayTR()),
+    vals = lastSevenDays().map((day) => ({ day, value: registerDaily(day).revenue })),
     max = Math.max(...vals.map((v) => v.value), 1),
     pts = vals.map((v, i) => `${40 + i * 82},${210 - (v.value / max) * 150}`).join(" ");
   return {

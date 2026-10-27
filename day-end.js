@@ -10,12 +10,12 @@ function setEndSort(v) {
 }
 function setDaySource(v) {
   daySource = v;
-  render();
+  show();
 }
 function setRegisterDate(v) {
   if (!v) return;
   registerDate = v;
-  render();
+  show();
 }
 function openRegisterDayEnd() {
   daySource = "register";
@@ -106,7 +106,7 @@ function localDayTable(items) {
   }</tbody></table></div><p class="dayEndNote">İşletme içi kullanım ve borç tahsilatları satış sıralamasına dahil değildir.</p></section>`;
 }
 function registerDayEnd() {
-  let d = RegisterCore.daily(reg, registerDate);
+  let d = registerDaily(registerDate);
   return (
     title(
       "Gün sonu",
@@ -137,6 +137,8 @@ const dayEndPage = {
   id: "dayEnd",
   label: "Gün sonu",
   icon: "report",
+  // Register view: the chosen day's entries, by the "date" index (register.js).
+  load: () => (daySource === "register" ? loadDays([registerDate]) : null),
   render: () => (daySource === "import" ? daySourceToggle() + importedDayEnd() : registerDayEnd()),
   badge: () => (daySource === "register" ? "Bu cihaz · yerel kayıt" : ""),
 };

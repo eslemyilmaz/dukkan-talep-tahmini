@@ -29,12 +29,14 @@ function openSalesDetails() {
   else showHistory();
 }
 function todayRegisterCard() {
-  return `<div class="card panel" style="margin-top:22px"><div class="paneltop"><div><h2>Bugünkü kasa kayıtları</h2><p class="muted">Geçmiş rapor ve örnek verilerden ayrı tutulur.</p></div><button class="softLink" onclick="openRegisterDayEnd()">Gün sonunu aç →</button></div><h2>${moneyKurus(RegisterCore.daily(reg, todayTR()).revenue)}</h2></div>`;
+  return `<div class="card panel" style="margin-top:22px"><div class="paneltop"><div><h2>Bugünkü kasa kayıtları</h2><p class="muted">Geçmiş rapor ve örnek verilerden ayrı tutulur.</p></div><button class="softLink" onclick="openRegisterDayEnd()">Gün sonunu aç →</button></div><h2>${moneyKurus(registerDaily(todayTR()).revenue)}</h2></div>`;
 }
 const overviewPage = {
   id: "overview",
   label: "Genel bakış",
   icon: "overview",
+  // The register parts read the last seven days (today included); one range query on the "date" index.
+  load: () => loadDays(lastSevenDays()),
   render() {
     let v = salesData ? reportOverviewParts() : registerOverviewParts(),
       priority = [...products].sort((a, b) => a.stock / a.min - b.stock / b.min).slice(0, 4);

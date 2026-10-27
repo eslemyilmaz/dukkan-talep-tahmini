@@ -24,7 +24,7 @@ const openPhone = () => openPreview("phone");
 const openTablet = () => openPreview("tablet");
 
 async function boot() {
-  initRegister();
+  await initRegister();
   if (isPreview) {
     document.querySelectorAll(".phoneButton,.tabletButton").forEach((b) => (b.style.display = "none"));
     document
@@ -37,7 +37,7 @@ async function boot() {
   // Wait briefly for a stored sales report so the first render already shows it.
   let restoring = restoreSales(),
     restored = await Promise.race([restoring, new Promise((r) => setTimeout(() => r(null), 1500))]);
-  render();
-  if (restored === null && (await restoring)) render();
+  await show();
+  if (restored === null && (await restoring)) show();
 }
 boot();

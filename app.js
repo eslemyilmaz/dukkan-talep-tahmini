@@ -46,7 +46,9 @@ const timeTR = () =>
     second: "2-digit",
   }).format(new Date());
 
-// ---------- Settings (assistant preferences; keys unchanged) ----------
+// ---------- Settings (assistant preferences) ----------
+// Stored in IndexedDB (meta "settings", storage.js). The old localStorage keys only seed the first value;
+// register.js writes that seed to IndexedDB once and adopt()s the stored value at boot and after a restore.
 function readJSON(key, fallback) {
   try {
     return JSON.parse(localStorage.getItem(key) || "null") ?? fallback;
@@ -54,40 +56,48 @@ function readJSON(key, fallback) {
     return fallback;
   }
 }
-function writeKey(key, value) {
+function readKey(key) {
   try {
-    localStorage.setItem(key, value);
-    return true;
+    return localStorage.getItem(key);
   } catch {
-    return false;
+    return null;
   }
 }
 const settings = {
   rules: readJSON("dukkan-rules", [true, true, true]),
+  time: readKey("dukkan-time") || "22:00",
+  channel: readKey("dukkan-channel") || "Telegram",
+  snapshot() {
+    return { rules: [...settings.rules], time: settings.time, channel: settings.channel };
+  },
+  adopt(s) {
+    if (!s || typeof s !== "object") return;
+    if (Array.isArray(s.rules)) settings.rules = s.rules.map(Boolean);
+    if (typeof s.time === "string") settings.time = s.time;
+    if (typeof s.channel === "string") settings.channel = s.channel;
+  },
+  // Resolves true when stored.
+  async save() {
+    try {
+      await Store.put("meta", settings.snapshot(), "settings");
+      return true;
+    } catch {
+      return false;
+    }
+  },
   setRule(i, on) {
     settings.rules[i] = on;
-    writeKey("dukkan-rules", JSON.stringify(settings.rules));
-  },
-  get time() {
-    try {
-      return localStorage.getItem("dukkan-time") || "22:00";
-    } catch {
-      return "22:00";
-    }
-  },
-  get channel() {
-    try {
-      return localStorage.getItem("dukkan-channel") || "Telegram";
-    } catch {
-      return "Telegram";
-    }
+    return settings.save();
   },
   savePreferences(time, channel) {
-    return writeKey("dukkan-time", time) && writeKey("dukkan-channel", channel);
+    settings.time = time;
+    settings.channel = channel;
+    return settings.save();
   },
 };
 
-// ---------- Product list (the register snapshot replaces it in initRegister) ----------
+// ---------- Product list (adopted from the register's meta record in initRegister) ----------
+// Seed for a brand-new register only: the pre-register "dukkan-products" list, else these samples.
 const sampleProducts = () => [
   { name: "Ekmek", category: "Temel gıda", stock: 18, min: 30, price: 15, icon: "◒", daily: 42 },
   { name: "Süt · 1 L", category: "Süt ürünleri", stock: 8, min: 15, price: 45, icon: "▯", daily: 12 },
@@ -96,7 +106,7 @@ const sampleProducts = () => [
   { name: "Çay · 500 g", category: "İçecek", stock: 32, min: 12, price: 130, icon: "▱", daily: 3 },
   { name: "Su · 1,5 L", category: "İçecek", stock: 65, min: 30, price: 15, icon: "♧", daily: 20 },
 ];
-let products = readJSON("dukkan-products", null) || sampleProducts();
+let products = [];
 const productById = (id) => products.find((p) => p.id === id);
 const lowStock = () => products.filter((p) => p.stock < p.min);
 
@@ -185,16 +195,41 @@ const ico = (k) =>
   `<svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="${paths[k] || paths.report}"/></svg>`;
 
 // ---------- Router ----------
-// pages: ordered [{ id, label, icon, render() -> html, afterRender?({ entered }), badge?() -> text }]
+// pages: ordered [{ id, label, icon, load?(), render() -> html, afterRender?({ entered }), badge?() -> text }]
+// render() is a synchronous HTML builder over in-memory state. A page whose data lives in IndexedDB declares
+// load(): it fills the caches render() reads and returns a promise, or nothing when they are already
+// filled. show() awaits it and then renders once, so a page never draws from a half-loaded cache; when
+// several loads overlap only the latest one renders.
 let pages = [];
 let page = "overview";
 let lastRendered = null;
+let loadSeq = 0;
 const currentPage = () => pages.find((p) => p.id === page) || pages[0];
+function show() {
+  let seq = ++loadSeq,
+    pending;
+  try {
+    pending = currentPage().load?.();
+  } catch (e) {
+    pending = Promise.reject(e);
+  }
+  if (!pending) {
+    render();
+    return Promise.resolve();
+  }
+  return Promise.resolve(pending)
+    .catch((e) => {
+      console.warn("Sayfa verisi okunamadı:", e);
+      toast("Kayıtlar okunamadı: " + (e?.message || e));
+    })
+    .then(() => {
+      if (seq === loadSeq) render();
+    });
+}
 function navigate(id) {
   criticalOnly = false;
   page = id;
-  render();
-  window.scrollTo(0, 0);
+  return show().then(() => window.scrollTo(0, 0));
 }
 function dataBadge() {
   return salesData ? "Gerçek satış · stok ayrı" : "Örnek veri";

@@ -1,12 +1,16 @@
 // Playwright smoke test: serves the repo with python3 http.server, clicks through the app, makes sales,
-// adds a product, records a credit collection, checks the preview frame and loads a sales report fixture.
+// checks they land in IndexedDB, adds a product, records a credit collection, makes 60 quick sales,
+// downloads a backup and restores it in a fresh profile, checks the preview frame, migrates an old
+// localStorage register in a fresh profile and loads a sales report fixture.
 // Usage: node test/smoke/run.js   (exit code 1 on any failed step or console/page error)
 "use strict";
 const { spawn } = require("node:child_process");
 const net = require("node:net");
 const http = require("node:http");
 const path = require("node:path");
+const fs = require("node:fs");
 const { chromium } = require("playwright");
+const RegisterCore = require("../../register-core.js");
 
 const ROOT = path.resolve(__dirname, "..", "..");
 const FIXTURE = path.join(ROOT, "test", "fixtures", "satis-raporu-ornek.xls");
@@ -73,6 +77,95 @@ async function waitToast(page, want, timeout = 3000) {
   return want;
 }
 
+// The app's IndexedDB (storage.js), read from inside the page. Only after the app has opened it: opening a
+// missing database here would create it without stores.
+const readDb = (page) =>
+  page.evaluate(
+    () =>
+      new Promise((resolve, reject) => {
+        const r = indexedDB.open("dukkan");
+        r.onerror = () => reject(r.error);
+        r.onsuccess = () => {
+          const db = r.result,
+            t = db.transaction(["meta", "entries"]),
+            out = {};
+          t.objectStore("meta").get("register").onsuccess = (e) => (out.meta = e.target.result);
+          t.objectStore("entries").getAll().onsuccess = (e) => (out.entries = e.target.result);
+          t.oncomplete = () => {
+            db.close();
+            resolve(out);
+          };
+          t.onerror = () => reject(t.error);
+        };
+      }),
+  );
+const putRegisterMeta = (page, value) =>
+  page.evaluate(
+    (v) =>
+      new Promise((resolve, reject) => {
+        const r = indexedDB.open("dukkan");
+        r.onerror = () => reject(r.error);
+        r.onsuccess = () => {
+          const db = r.result,
+            t = db.transaction("meta", "readwrite");
+          t.objectStore("meta").put(v, "register");
+          t.oncomplete = () => {
+            db.close();
+            resolve();
+          };
+          t.onerror = () => reject(t.error);
+        };
+      }),
+    value,
+  );
+const localStorageDump = (page) =>
+  page.evaluate(() => Object.keys(localStorage).map((k) => [k, localStorage.getItem(k)]));
+
+function watch(page) {
+  page.on("console", (m) => m.type() === "error" && errors.push("console: " + m.text()));
+  page.on("pageerror", (e) => errors.push("pageerror: " + e.message));
+  return page;
+}
+
+// An old-format register: everything in one localStorage blob, built with the real rules.
+function legacyRegister() {
+  let s = {
+    version: 1,
+    rev: 0,
+    nextNumber: 1,
+    products: [
+      { id: "lp1", name: "Peynir", category: "Süt ürünleri", stock: 10, min: 2, price: 120, cost: null },
+      { id: "lp2", name: "Zeytin", category: "Temel gıda", stock: 10, min: 2, price: 45, cost: 30 },
+    ],
+    entries: [],
+    customers: [{ id: "lc1", name: "Ayşe Hanım" }],
+  };
+  const at = { date: "2026-01-15", time: "10:00:00" };
+  s = RegisterCore.commit(s, {
+    id: "le1",
+    kind: "sale",
+    payment: "cash",
+    items: [{ id: "lp1", q: 1, unit: 12000 }],
+    ...at,
+  });
+  s = RegisterCore.commit(s, {
+    id: "le2",
+    kind: "sale",
+    payment: "credit",
+    customerId: "lc1",
+    items: [{ id: "lp2", q: 2, unit: 4500 }],
+    ...at,
+  });
+  return RegisterCore.commit(s, {
+    id: "le3",
+    kind: "collection",
+    customerId: "lc1",
+    amount: 40,
+    payment: "cash",
+    ...at,
+  });
+}
+
 async function gotoNav(page, label) {
   const buttons = page.locator("#nav button");
   const texts = (await buttons.allTextContents()).map((t) => t.trim());
@@ -98,9 +191,7 @@ async function gotoNav(page, label) {
   try {
     await waitForServer(url);
     browser = await chromium.launch();
-    const page = await (await browser.newContext()).newPage();
-    page.on("console", (m) => m.type() === "error" && errors.push("console: " + m.text()));
-    page.on("pageerror", (e) => errors.push("pageerror: " + e.message));
+    const page = watch(await (await browser.newContext({ acceptDownloads: true })).newPage());
 
     await step("load app", async () => {
       await page.goto(url + "?debug=1", { waitUntil: "networkidle" });
@@ -146,6 +237,17 @@ async function gotoNav(page, label) {
       return want;
     });
 
+    await step("sale: entry in IndexedDB, not in localStorage", async () => {
+      const db = await readDb(page);
+      const last = [...db.entries].sort((a, b) => b.number - a.number)[0];
+      if (!last || last.kind !== "sale" || !last.items.length) throw Error("no sale entry in IndexedDB");
+      if ("entries" in db.meta) throw Error("meta record carries entries");
+      if (db.meta.nextNumber !== last.number + 1) throw Error("nextNumber " + db.meta.nextNumber);
+      const ls = await localStorageDump(page);
+      const leaked = ls.find(([k, v]) => k.startsWith("dukkan-register") || v.includes(last.id));
+      if (leaked) throw Error("localStorage still holds register data: " + leaked[0]);
+      return `#${last.number} in IndexedDB · localStorage keys: ${ls.length}`;
+    });
     const productName = "Smoke Ürün";
     const productBarcode = "SMOKE0001";
     await step("stock: add product via modal", async () => {
@@ -169,14 +271,14 @@ async function gotoNav(page, label) {
     });
 
     await step("stock: failed save keeps the form open", async () => {
-      const saved = await page.evaluate(() => localStorage.getItem("dukkan-register-v1"));
-      await page.evaluate(() => localStorage.setItem("dukkan-register-v1", "{broken"));
+      const saved = (await readDb(page)).meta;
+      await putRegisterMeta(page, "{broken");
       await page.locator("#stockTable button.link").first().click();
       await page.locator("#mbody button.primary").click();
       await page.waitForTimeout(200);
       const open = await page.evaluate(() => document.getElementById("modal").open);
       const msg = await page.locator("#mbody [role=alert]").textContent();
-      await page.evaluate((s) => localStorage.setItem("dukkan-register-v1", s), saved);
+      await putRegisterMeta(page, saved);
       await page.evaluate(() => document.getElementById("modal").close());
       if (!open) throw Error("modal closed after a failed save");
       if (!msg.startsWith("Kaydedilemedi:")) throw Error("alert was: " + msg);
@@ -212,6 +314,105 @@ async function gotoNav(page, label) {
       return customer + " · kalan " + balance;
     });
 
+    await step("60 quick sales: history shows 50, day-end totals match", async () => {
+      await gotoNav(page, "Satış");
+      await page.evaluate(async () => {
+        const d = window.__dukkanDebug;
+        for (let i = 0; i < 60; i++) {
+          const p = d
+            .products()
+            .filter((p) => p.price > 0)
+            .sort((a, b) => b.stock - a.stock)[0];
+          await d.commit({
+            id: "smoke-quick-" + i,
+            kind: "sale",
+            payment: i % 3 ? "cash" : "card",
+            items: [{ id: p.id, q: 1, unit: RegisterCore.cents(p.price) }],
+            date: todayTR(),
+            time: "12:00:00",
+          });
+        }
+      });
+      await page.locator("#content button", { hasText: "Son işlemler" }).click();
+      await page.waitForSelector("#modal[open] #mbody .historyDetail");
+      const rows = await page.locator("#mbody .historyDetail").count();
+      const top = await page.locator("#mbody .historyDetail summary strong").first().textContent();
+      await page.evaluate(() => document.getElementById("modal").close());
+      const db = await readDb(page);
+      const newest = Math.max(...db.entries.map((e) => e.number));
+      if (rows !== 50) throw Error(rows + " history rows");
+      if (!top.includes("#" + String(newest).padStart(4, "0"))) throw Error("newest row is " + top);
+      const today = await page.evaluate(() => todayTR());
+      const day = db.entries.filter((e) => e.date === today);
+      const revenue = day.filter((e) => e.kind === "sale").reduce((s, e) => s + e.total, 0);
+      const want = await page.evaluate((k) => moneyKurus(k), revenue);
+      await gotoNav(page, "Gün sonu");
+      const shown = (await page.locator(".registerSummary .card strong").first().textContent()).trim();
+      const count = (await page.locator("section.bottom .paneltop .muted").textContent()).trim();
+      if (shown !== want) throw Error(`revenue ${shown}, IndexedDB says ${want}`);
+      if (count !== day.length + " kayıt") throw Error(`${count}, IndexedDB has ${day.length}`);
+      return `${rows} rows · ${count} · ${shown}`;
+    });
+
+    let backupFile = "",
+      backup = null;
+    await step("backup: download", async () => {
+      await gotoNav(page, "Asistan");
+      const info = await page.locator("#storageInfo").textContent();
+      if (!/Kalıcı depolama: (açık|kapalı|bilinmiyor)/.test(info)) throw Error("storage line: " + info);
+      const [dl] = await Promise.all([page.waitForEvent("download"), page.click("#backupDownload")]);
+      const name = dl.suggestedFilename();
+      if (!/^dukkan-yedek-\d{4}-\d{2}-\d{2}\.json$/.test(name)) throw Error("file name " + name);
+      backupFile = await dl.path();
+      backup = JSON.parse(fs.readFileSync(backupFile, "utf8"));
+      const db = await readDb(page);
+      if (backup.format !== "dukkan-backup" || backup.version !== 1) throw Error("format/version");
+      if (backup.reportIncluded !== false || "report" in backup) throw Error("report included by default");
+      const r = backup.register;
+      if (r.entries.length !== db.entries.length)
+        throw Error(`${r.entries.length} vs ${db.entries.length} entries`);
+      if (r.products.length !== db.meta.products.length || r.customers.length !== db.meta.customers.length)
+        throw Error("product/customer counts differ");
+      if (r.nextNumber !== db.meta.nextNumber) throw Error("nextNumber differs");
+      return `${name} · ${r.entries.length} işlem · ${r.products.length} ürün · ${r.customers.length} müşteri`;
+    });
+
+    await step("backup: restore into a fresh profile", async () => {
+      if (!backup) throw Error("no backup from the previous step");
+      const ctx = await browser.newContext();
+      const fresh = watch(await ctx.newPage());
+      try {
+        await fresh.goto(url, { waitUntil: "networkidle" });
+        await gotoNav(fresh, "Asistan");
+        await fresh.setInputFiles("#restoreFile", backupFile);
+        await fresh.waitForSelector("#restoreConfirm:not([disabled])", { timeout: 3000 });
+        const summary = await fresh.locator("#restoreSummary").textContent();
+        const r = backup.register;
+        if (
+          !summary.startsWith(`${r.entries.length} işlem · ${r.products.length} ürün · ${r.customers.length}`)
+        )
+          throw Error("summary: " + summary);
+        await fresh.click("#restoreConfirm");
+        await waitToast(fresh, "Yedek geri yüklendi");
+        const db = await readDb(fresh);
+        const ids = (list) =>
+          list
+            .map((e) => e.id)
+            .sort()
+            .join();
+        if (ids(db.entries) !== ids(r.entries)) throw Error(`${db.entries.length} entries after restore`);
+        if (db.meta.products.length !== r.products.length || db.meta.customers.length !== r.customers.length)
+          throw Error("product/customer counts differ");
+        if (db.meta.nextNumber !== r.nextNumber) throw Error("nextNumber " + db.meta.nextNumber);
+        await gotoNav(fresh, "Veresiye");
+        const card = (await fresh.locator(".creditCard", { hasText: customer }).textContent()) || "";
+        if (!card.includes("₺7,50")) throw Error("credit card: " + card);
+        return `${db.entries.length} işlem · ${db.meta.products.length} ürün · ${customer} ₺7,50`;
+      } finally {
+        await ctx.close();
+      }
+    });
+
     await step("preview frame shares records without a cross-tab toast", async () => {
       const preview = await page.context().newPage();
       await preview.goto(url + "?tablet=1", { waitUntil: "networkidle" });
@@ -238,11 +439,86 @@ async function gotoNav(page, label) {
       return waitToast(page, "Kayıtlar diğer sekmeden güncellendi.");
     });
 
+    await step("backup: an older backup needs the explicit override", async () => {
+      await gotoNav(page, "Asistan");
+      await page.setInputFiles("#restoreFile", backupFile);
+      await page.waitForSelector("#restoreRefusal", { timeout: 3000 });
+      if (!(await page.locator("#restoreConfirm").isDisabled()))
+        throw Error("confirm enabled without override");
+      await page.check("#restoreOverride");
+      if (await page.locator("#restoreConfirm").isDisabled()) throw Error("override did not enable confirm");
+      await gotoNav(page, "Genel bakış");
+      return "refused until ticked";
+    });
+
+    await step("migration: localStorage register moves to IndexedDB", async () => {
+      const ctx = await browser.newContext();
+      const old = watch(await ctx.newPage());
+      try {
+        const legacy = legacyRegister(),
+          raw = JSON.stringify(legacy);
+        await old.goto(url + "README.md");
+        await old.evaluate((r) => localStorage.setItem("dukkan-register-v1", r), raw);
+        await old.goto(url, { waitUntil: "networkidle" });
+        await old.waitForSelector("#nav button", { timeout: 5000 });
+        const db = await readDb(old);
+        if (db.meta.products.length !== 2 || db.meta.customers.length !== 1) throw Error("meta not imported");
+        if (db.entries.length !== 3 || db.meta.nextNumber !== 4) throw Error(db.entries.length + " entries");
+        const ls = Object.fromEntries(await localStorageDump(old));
+        if ("dukkan-register-v1" in ls) throw Error("old key still present");
+        if (ls["dukkan-register-v1-migrated"] !== raw) throw Error("safety copy missing or changed");
+        await gotoNav(old, "Veresiye");
+        const card = await old.locator(".creditCard", { hasText: "Ayşe Hanım" }).textContent();
+        if (!card.includes("₺50,00")) throw Error("balance: " + card);
+        return "2 ürün · 3 işlem · 1 müşteri (₺50,00) · key renamed";
+      } finally {
+        await ctx.close();
+      }
+    });
+
     await step("reports: load sales report fixture", async () => {
       await gotoNav(page, "Raporlar");
       await page.setInputFiles("#salesFile", FIXTURE);
       await page.click("#salesImport");
       return waitToast(page, "Gerçek satış raporu yüklendi.", 30000);
+    });
+
+    await step("report: old dukkan-sales database moves to the shared one", async () => {
+      const report = await page.evaluate(() => Store.get("report", "report"));
+      if (!report?.days) throw Error("no report in the shared database");
+      const ctx = await browser.newContext();
+      const old = watch(await ctx.newPage());
+      try {
+        await old.goto(url + "README.md");
+        await old.evaluate(
+          (data) =>
+            new Promise((resolve, reject) => {
+              const r = indexedDB.open("dukkan-sales", 1);
+              r.onupgradeneeded = () => r.result.createObjectStore("data");
+              r.onerror = () => reject(r.error);
+              r.onsuccess = () => {
+                const t = r.result.transaction("data", "readwrite");
+                t.objectStore("data").put(data, "report");
+                t.oncomplete = () => (r.result.close(), resolve());
+              };
+            }),
+          report,
+        );
+        await old.goto(url, { waitUntil: "networkidle" });
+        await old.waitForSelector("#nav button", { timeout: 5000 });
+        const badge = await old.locator(".demo").textContent();
+        if (badge !== "Gerçek satış · stok ayrı") throw Error("badge: " + badge);
+        const moved = await old.evaluate(async () => {
+          const data = await Store.get("report", "report");
+          const names = (await indexedDB.databases()).map((d) => d.name);
+          return { rows: data?.stats?.rows, names };
+        });
+        if (moved.rows !== report.stats.rows) throw Error("report not in the shared database");
+        if (moved.names.includes("dukkan-sales")) throw Error("old database not deleted");
+        return `${moved.rows} satır taşındı · databases: ${moved.names.join(", ")}`;
+      } finally {
+        await ctx.close();
+      }
     });
 
     await step("forecasts: trial from the loaded report", async () => {

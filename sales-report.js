@@ -1,4 +1,4 @@
-/* Imported sales report: IndexedDB persistence, worker invocation, report-based overview parts,
+/* Imported sales report: persistence (storage.js "report" store), worker invocation, report-based overview parts,
    the real-data chart, daily details and the backtest trial shown on the forecasts page. */
 "use strict";
 
@@ -7,34 +7,47 @@ let salesData = null,
   trialProduct = "",
   salesBusy = false;
 
-function salesDB() {
-  return new Promise((resolve, reject) => {
-    let r = indexedDB.open("dukkan-sales", 1);
-    r.onupgradeneeded = () => r.result.createObjectStore("data");
-    r.onsuccess = () => resolve(r.result);
-    r.onerror = () => reject(r.error);
-  });
+// The report lives in the "report" store of the shared database (storage.js).
+function persistSales(data) {
+  return Store.put("report", data, "report");
 }
-async function persistSales(data) {
-  let db = await salesDB();
-  await new Promise((resolve, reject) => {
-    let t = db.transaction("data", "readwrite");
-    t.objectStore("data").put(data, "report");
-    t.oncomplete = resolve;
-    t.onerror = () => reject(t.error);
+// Reports imported before storage.js were kept in their own database "dukkan-sales" (store "data", key
+// "report"). Copies such a report into the "report" store once, then deletes the old database. Opening
+// without a version would create a missing database, so a fresh upgrade (oldVersion 0) is aborted instead.
+function migrateOldReport() {
+  return new Promise((resolve) => {
+    let r = indexedDB.open("dukkan-sales");
+    r.onupgradeneeded = () => r.transaction.abort();
+    r.onerror = (e) => {
+      e.preventDefault();
+      resolve(null);
+    };
+    r.onsuccess = () => {
+      let db = r.result;
+      const done = async (data) => {
+        db.close();
+        try {
+          if (data) await persistSales(data);
+          indexedDB.deleteDatabase("dukkan-sales");
+        } catch {
+          console.warn("Eski satış raporu taşınamadı; eski veritabanı korundu.");
+        }
+        resolve(data);
+      };
+      if (!db.objectStoreNames.contains("data")) return done(null);
+      let g = db.transaction("data").objectStore("data").get("report");
+      g.onsuccess = () => done(g.result ?? null);
+      g.onerror = () => {
+        db.close();
+        resolve(null);
+      };
+    };
   });
-  db.close();
 }
 // Resolves true when a stored report was activated. Never rejects; the caller renders.
 async function restoreSales() {
   try {
-    let db = await salesDB();
-    let data = await new Promise((resolve, reject) => {
-      let r = db.transaction("data").objectStore("data").get("report");
-      r.onsuccess = () => resolve(r.result);
-      r.onerror = () => reject(r.error);
-    });
-    db.close();
+    let data = (await Store.get("report", "report")) ?? (await migrateOldReport());
     if (!data) return false;
     activateSales(data);
     return true;
