@@ -11,6 +11,8 @@ if not errorlevel 1 (
     goto end
 )
 echo Python 3 bulunamadi. Python 3 kurulu bir bilgisayarda deneyin.
-echo Alternatif: ONCE_OKUYUN.txt icindeki canli uygulama baglantisini acin.
+echo Python 3 indirmek icin: https://www.python.org/downloads/
+echo Kurulumda "Add python.exe to PATH" secenegini isaretleyin.
+echo Ayrintilar icin bu klasordeki README.md dosyasina bakin.
 pause
 :end
