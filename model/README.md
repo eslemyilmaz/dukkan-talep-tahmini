@@ -74,6 +74,12 @@ ayırıcısı otomatik algılanır, `.gz` de kabul edilir. `tarih` alanı `YYYY-
 Her ürün-gün için bir satır olmalıdır; tekrar eden satırlar toplanır. Barkodlar metin olarak
 okunur, baştaki sıfırlar korunur.
 
+Tablet uygulaması bu dosyayı Raporlar → "Satış kayıtlarını modele aktar" kartından üretir
+(UTF-8 BOM'lu, `;` ayırıcılı, `urun-gun-BAŞLANGIÇ_BİTİŞ.csv`). Yalnızca satış kayıtları
+aktarılır: işletme içi kullanım ve veresiye tahsilatları dahil edilmez. Satış olmayan günler
+dosyada yer almaz ve eksik gün sayılır. Barkodsuz ürünler varsayılan olarak dışarıda kalır;
+istenirse `app:` önekli ürün kimliğiyle yazılır, ancak uygulama tahmini yalnızca barkodla eşleştirir.
+
 **Ham market raporu**: Satış programının HTML tabanlı ".xls" çıktısıdır, ZIP içinde de
 gelebilir. Kodlama windows-1254'tür, UTF-8 de algılanır. Her `<tr>` bir satış satırıdır ve 13
 hücre içerir: 0 tarih (`gg.aa.yyyy`), 4 barkod, 5 ürün adı, 6 grup, 7 miktar, 8 birim fiyat,

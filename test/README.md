@@ -43,6 +43,13 @@ Chromium'da `?debug=1` ile açar ve sırasıyla:
    veresiye bakiyesinin doğru olduğunu;
 9. satış raporu fikstürünü yüklemeyi; eski `dukkan-sales` veritabanındaki raporun yeni bir profilde ortak
    `dukkan` veritabanına taşınıp eski veritabanının silindiğini; tahmin denemesini (56 gün).
+10. model CSV'si: yeni bir profilde iki ürün (biri barkodlu, baştaki sıfırıyla), iki güne yayılan üç satış,
+    bir işletme içi kullanım ve bir tahsilat; Raporlar → "Ürün-gün CSV indir" dosyasının adını
+    (`urun-gun-2026-03-02_2026-03-04.csv`), BOM'unu, başlığını, CRLF satır sonlarını ve satırlarını (yalnızca
+    satışlar; barkodsuz ürün varsayılan olarak hariç, kutu işaretlenince `app:<id>`); ardından `model/`
+    klasöründe `python3 -c` ile `dukkan_tahmin.io_csv.load_canonical` çağrılarak satır sayısını, miktarları,
+    tutarları ve satış olmayan günün eksik gün sayıldığını. `python3` ya da paket içe aktarılamazsa bu adım
+    `SKIP:` ile geçilir.
 
 Konsol hataları ve `pageerror` olayları tüm sayfalardan toplanır; herhangi bir adım ya da hata varsa çıkış
 kodu 1 olur. Playwright'ın sistemde kurulu olması gerekir (`require("playwright")`).

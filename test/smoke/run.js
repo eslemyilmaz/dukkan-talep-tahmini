@@ -531,6 +531,139 @@ async function gotoNav(page, label) {
 
     await step("nav: Veresiye", () => gotoNav(page, "Veresiye"));
     await step("nav: Gün sonu", () => gotoNav(page, "Gün sonu"));
+    // Register sales -> product-day CSV (Raporlar) -> the model's canonical CSV loader.
+    let productDayFiles = null;
+    const productDayDir = fs.mkdtempSync(path.join(require("node:os").tmpdir(), "urun-gun-"));
+    await step("model CSV: register sales export as product-day CSV", async () => {
+      const ctx = await browser.newContext({ acceptDownloads: true });
+      const shop = watch(await ctx.newPage());
+      try {
+        await shop.goto(url + "README.md");
+        await shop.evaluate(() =>
+          localStorage.setItem(
+            "dukkan-products",
+            JSON.stringify([
+              {
+                id: "rt1",
+                name: "Ayran",
+                category: "İçecek",
+                barcode: "0869000000017",
+                stock: 50,
+                min: 2,
+                price: 12.5,
+              },
+              { id: "rt2", name: "Simit", category: "Fırın", stock: 50, min: 2, price: 10 },
+            ]),
+          ),
+        );
+        await shop.goto(url + "?debug=1", { waitUntil: "networkidle" });
+        await shop.waitForSelector("#nav button", { timeout: 5000 });
+        await shop.evaluate(async () => {
+          const c = window.__dukkanDebug.commit,
+            day1 = { date: "2026-03-02", time: "10:00:00" },
+            day2 = { date: "2026-03-04", time: "11:00:00" };
+          const a = (q) => ({ id: "rt1", q, unit: 1250 }),
+            b = (q) => ({ id: "rt2", q, unit: 1000 });
+          await c({ id: "rt-s1", kind: "sale", payment: "cash", items: [a(2), b(1)], ...day1 });
+          await c({ id: "rt-s2", kind: "sale", payment: "card", items: [a(1)], ...day1 });
+          await c({
+            id: "rt-s3",
+            kind: "sale",
+            payment: "credit",
+            newCustomer: { id: "rtc1", name: "Deneme" },
+            items: [a(4), b(2)],
+            ...day2,
+          });
+          await c({ id: "rt-i1", kind: "internal", note: "Çay ocağı", items: [a(5)], ...day2 });
+          await c({
+            id: "rt-c1",
+            kind: "collection",
+            customerId: "rtc1",
+            amount: 10,
+            payment: "cash",
+            ...day2,
+          });
+        });
+        await gotoNav(shop, "Raporlar");
+        const grab = async () => {
+          const [dl] = await Promise.all([shop.waitForEvent("download"), shop.click("#productDayDownload")]);
+          const file = path.join(productDayDir, fs.readdirSync(productDayDir).length + ".csv");
+          await dl.saveAs(file);
+          return { name: dl.suggestedFilename(), file, text: fs.readFileSync(file, "utf8") };
+        };
+        const plain = await grab();
+        await waitToast(shop, "Barkodsuz 2 satış satırı dahil edilmedi.");
+        await shop.check("#productDayNoBarcode");
+        const all = await grab();
+        const header = "tarih;barkod;urun;kategori;birim;miktar;tutar";
+        if (plain.name !== "urun-gun-2026-03-02_2026-03-04.csv") throw Error("file name " + plain.name);
+        for (const f of [plain, all]) {
+          if (!f.text.startsWith("﻿" + header + "\r\n")) throw Error("BOM/header: " + f.text.slice(0, 60));
+          if (/[^\r]\n/.test(f.text)) throw Error("line ending is not CRLF");
+        }
+        const lines = (f) => f.text.slice(1).trim().split("\r\n").slice(1);
+        const want = [
+          '"2026-03-02";"0869000000017";"Ayran";"İçecek";"adet";"3";"37.50"',
+          '"2026-03-04";"0869000000017";"Ayran";"İçecek";"adet";"4";"50.00"',
+        ];
+        if (lines(plain).join("|") !== want.join("|")) throw Error("rows: " + lines(plain).join(" | "));
+        const extra = lines(all).filter((l) => l.includes('"app:rt2"'));
+        if (lines(all).length !== 4 || extra.length !== 2)
+          throw Error("with app: ids: " + lines(all).join(" | "));
+        productDayFiles = { plain: plain.file, all: all.file };
+        return `${plain.name} · 2 satır (barkodsuz hariç) · 4 satır (app: dahil)`;
+      } finally {
+        await ctx.close();
+      }
+    });
+
+    await step("model CSV: dukkan_tahmin.io_csv.load_canonical reads it", async () => {
+      if (!productDayFiles) throw Error("no CSV from the previous step");
+      const { spawnSync } = require("node:child_process");
+      const modelDir = path.join(ROOT, "model");
+      const probe = spawnSync("python3", ["-c", "import dukkan_tahmin.io_csv"], {
+        cwd: modelDir,
+        encoding: "utf8",
+      });
+      if (probe.error || probe.status !== 0)
+        return (
+          "SKIP: python3 or dukkan_tahmin unavailable (" +
+          (probe.error?.code || probe.stderr.trim().split("\n").at(-1)) +
+          ")"
+        );
+      const script = [
+        "import json, sys",
+        "from dukkan_tahmin.io_csv import load_canonical, read_canonical_rows",
+        "out = []",
+        "for p in sys.argv[1:]:",
+        "    rows, invalid, cols = read_canonical_rows(p)",
+        "    d = load_canonical(p)",
+        "    s = d.sales.sort_values(['tarih', 'barkod'])",
+        "    out.append({'rows': len(rows), 'invalid': invalid, 'sep': cols['separator'],",
+        "                'sales': [[str(r.tarih.date()), r.barkod, float(r.miktar), float(r.tutar)] for r in s.itertuples()],",
+        "                'units': sorted(set(d.products['birim'])), 'missing': d.quality['missing_days']})",
+        "print(json.dumps(out))",
+      ].join("\n");
+      const run = spawnSync("python3", ["-c", script, productDayFiles.plain, productDayFiles.all], {
+        cwd: modelDir,
+        encoding: "utf8",
+      });
+      if (run.status !== 0) throw Error("python: " + run.stderr.trim().split("\n").at(-1));
+      const [plain, all] = JSON.parse(run.stdout);
+      const sales = (r) => r.sales.map((x) => x.join(",")).join(" | ");
+      if (plain.rows !== 2 || plain.invalid || plain.sep !== ";")
+        throw Error("plain: " + JSON.stringify(plain));
+      if (sales(plain) !== "2026-03-02,0869000000017,3,37.5 | 2026-03-04,0869000000017,4,50")
+        throw Error("plain sales: " + sales(plain));
+      if (all.rows !== 4 || all.invalid) throw Error("all: " + JSON.stringify(all));
+      const simit = all.sales.filter((x) => x[1] === "app:rt2").map((x) => x[2]);
+      if (simit.join() !== "1,2") throw Error("app:rt2 quantities " + simit.join());
+      if (all.units.join() !== "adet") throw Error("units " + all.units.join());
+      if (plain.missing.join() !== "2026-03-03") throw Error("missing days " + plain.missing.join());
+      return "2 + 4 satır · miktar 3/4 · 2026-03-03 eksik gün";
+    });
+    fs.rmSync(productDayDir, { recursive: true, force: true });
+
     await step("no console/page errors", async () => {
       if (errors.length) throw Error(errors.length + " error(s)");
       return "0 errors";
