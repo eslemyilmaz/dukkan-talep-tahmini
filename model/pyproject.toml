@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dukkan-tahmin"
+version = "0.1.0"
+description = "Küçük perakende işletmesi için ürün-gün satış tahmini, düzenlileştirilmiş grup ağırlıklı tahmin birleştirme ve stok önerisi (TÜBİTAK 2209-A araştırma katmanı)."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "Proprietary research prototype" }
+authors = [
+  { name = "Eslem Yılmaz" },
+  { name = "Beyza Dönmez" },
+  { name = "Emre Kişi" },
+]
+dependencies = [
+  "numpy>=1.24",
+  "pandas>=2.2",  # DataFrameGroupBy.apply(include_groups=...)
+  "xgboost>=2.0",
+  "scikit-learn>=1.3",
+]
+
+[project.optional-dependencies]
+test = ["pytest>=7", "jsonschema>=4.18"]
+
+[project.scripts]
+dukkan-tahmin = "dukkan_tahmin.__main__:main"
+
+[tool.setuptools]
+packages = ["dukkan_tahmin"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

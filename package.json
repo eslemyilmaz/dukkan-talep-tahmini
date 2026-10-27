@@ -10,7 +10,10 @@
     "test": "node --test \"test/**/*.test.js\"",
     "test:unit": "node --test \"test/unit/**/*.test.js\"",
     "test:smoke": "node test/smoke/run.js",
-    "format": "prettier --print-width 110 --write \"*.{js,css,html}\" test"
+    "format": "prettier --print-width 110 --write \"*.{js,css,html}\" test",
+    "test:pwa": "node test/smoke/pwa-forecast.js",
+    "test:all": "npm test && npm run test:smoke && npm run test:pwa",
+    "sw:hash": "node test/tools/sw-hash.js --write"
   },
   "devDependencies": {
     "prettier": "3.3.3"

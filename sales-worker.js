@@ -126,7 +126,9 @@ async function reportStream(file) {
       ex = cv.getUint16(i + 30, true),
       co = cv.getUint16(i + 32, true),
       name = new TextDecoder().decode(bytes.slice(i + 46, i + 46 + nl));
-    if (/\.(xls|html?)$/i.test(name))
+    // macOS archives add "__MACOSX/" copies and "._name" resource forks next to the real file; skip them.
+    let base = name.split("/").at(-1);
+    if (/\.(xls|html?)$/i.test(name) && !/^__MACOSX\//.test(name) && !base.startsWith("._"))
       files.push({
         method: cv.getUint16(i + 10, true),
         flags: cv.getUint16(i + 8, true),
@@ -261,8 +263,17 @@ onmessage = async ({ data: file }) => {
       }
       if (!cols || c.length < need || !/^\d{2}\.\d{2}\.\d{4}$/.test(c[cols.date])) return;
       let match = c[cols.date].split("."),
-        dt = `${match[2]}-${match[1]}-${match[0]}`;
-      if (new Date(dt + "T12:00:00Z").toISOString().slice(0, 10) !== dt) {
+        dt = `${match[2]}-${match[1]}-${match[0]}`,
+        month = +match[1],
+        day = +match[0];
+      // Out-of-range parts make an Invalid Date, whose toISOString() throws; count them as invalid dates.
+      if (
+        month < 1 ||
+        month > 12 ||
+        day < 1 ||
+        day > 31 ||
+        new Date(dt + "T12:00:00Z").toISOString().slice(0, 10) !== dt
+      ) {
         result.stats.invalid++;
         return;
       }

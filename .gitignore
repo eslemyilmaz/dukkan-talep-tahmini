@@ -13,6 +13,7 @@ upload/
 # Sentetik/örnek veri dosyaları depoda tutulabilir
 !model/tests/fixtures/**
 !model/ornek/**
+!test/fixtures/**
 
 # Python
 __pycache__/

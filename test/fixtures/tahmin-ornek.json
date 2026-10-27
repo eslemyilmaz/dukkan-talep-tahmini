@@ -1,0 +1,3393 @@
+{
+  "version": 1,
+  "generated_at": "2026-10-27T20:31:11+03:00",
+  "origin": "2026-10-26",
+  "data_range": {
+    "start": "2023-11-01",
+    "end": "2026-10-26",
+    "recorded_days": 1072,
+    "missing_days": 19
+  },
+  "method": {
+    "name": "grouped_regularized_combination",
+    "lambda": 1.0,
+    "a0": {
+      "weekly": 0.8784,
+      "monthly": 0.8958
+    },
+    "group_thresholds": {
+      "zero_ratio_intermittent": 0.5,
+      "cv_split": [0.3932],
+      "min_obs": 56
+    },
+    "weights": {
+      "weekly": {
+        "steady": 0.8777,
+        "variable": 0.8816,
+        "intermittent": 0.8739,
+        "sparse": 0.8784
+      },
+      "monthly": {
+        "steady": 0.8954,
+        "variable": 0.9012,
+        "intermittent": 0.8886,
+        "sparse": 0.8958
+      }
+    },
+    "xgboost_params": {
+      "eta": 0.1,
+      "max_depth": 4,
+      "min_child_weight": 1,
+      "n_estimators": 80,
+      "tree_method": "hist",
+      "random_state": 7
+    },
+    "features": {
+      "lags": [1, 7, 14, 28],
+      "ma_windows": [7, 28]
+    },
+    "monthly_mode": "calendar",
+    "scale": "product_mean",
+    "selection": {
+      "plan": {
+        "test_start": "2025-11-01",
+        "internal_origins": ["2025-06-30", "2025-07-31", "2025-08-31", "2025-09-30"],
+        "tune_origins": ["2025-08-31", "2025-09-30"],
+        "external_origins": [
+          "2025-10-31",
+          "2025-11-30",
+          "2025-12-31",
+          "2026-01-31",
+          "2026-02-28",
+          "2026-03-31",
+          "2026-04-30",
+          "2026-05-31",
+          "2026-06-30",
+          "2026-07-31",
+          "2026-08-31"
+        ]
+      },
+      "xgboost_grid": [
+        {
+          "params": {
+            "eta": 0.1,
+            "max_depth": 3,
+            "min_child_weight": 1,
+            "n_estimators": 80
+          },
+          "wape_pilot": {
+            "monthly": 8.3354,
+            "weekly": 9.6453
+          },
+          "score": 17.9807
+        },
+        {
+          "params": {
+            "eta": 0.1,
+            "max_depth": 4,
+            "min_child_weight": 1,
+            "n_estimators": 80
+          },
+          "wape_pilot": {
+            "monthly": 7.3199,
+            "weekly": 9.4981
+          },
+          "score": 16.818
+        }
+      ],
+      "threshold_lambda_grid": [
+        {
+          "zero_ratio_intermittent": 0.5,
+          "cv_split": 0.3932,
+          "lambda": 0.0,
+          "wape_pilot": {
+            "monthly": 7.2696,
+            "weekly": 10.5744
+          },
+          "score": 17.8441
+        },
+        {
+          "zero_ratio_intermittent": 0.5,
+          "cv_split": 0.3932,
+          "lambda": 0.1,
+          "wape_pilot": {
+            "monthly": 6.5077,
+            "weekly": 9.8024
+          },
+          "score": 16.3101
+        },
+        {
+          "zero_ratio_intermittent": 0.5,
+          "cv_split": 0.3932,
+          "lambda": 1.0,
+          "wape_pilot": {
+            "monthly": 6.5426,
+            "weekly": 9.7298
+          },
+          "score": 16.2724
+        },
+        {
+          "zero_ratio_intermittent": 0.5,
+          "cv_split": 0.4877,
+          "lambda": 0.0,
+          "wape_pilot": {
+            "monthly": 6.9105,
+            "weekly": 10.0509
+          },
+          "score": 16.9614
+        },
+        {
+          "zero_ratio_intermittent": 0.5,
+          "cv_split": 0.4877,
+          "lambda": 0.1,
+          "wape_pilot": {
+            "monthly": 6.554,
+            "weekly": 9.7971
+          },
+          "score": 16.3511
+        },
+        {
+          "zero_ratio_intermittent": 0.5,
+          "cv_split": 0.4877,
+          "lambda": 1.0,
+          "wape_pilot": {
+            "monthly": 6.5461,
+            "weekly": 9.7295
+          },
+          "score": 16.2756
+        }
+      ],
+      "criterion": "pilot ürünlerde iç doğrulama WAPE toplamı (monthly, weekly)"
+    },
+    "fixed_weights": {
+      "ablation_common_weight": {
+        "lambda": 0.0,
+        "a0": {
+          "weekly": 1.0,
+          "monthly": 0.978
+        },
+        "weights": {
+          "weekly": {
+            "steady": 1.0,
+            "variable": 1.0,
+            "intermittent": 1.0,
+            "sparse": 1.0
+          },
+          "monthly": {
+            "steady": 0.978,
+            "variable": 0.978,
+            "intermittent": 0.978,
+            "sparse": 0.978
+          }
+        },
+        "n_obs": {
+          "weekly": {
+            "steady": 20,
+            "variable": 38,
+            "intermittent": 20,
+            "sparse": 2
+          },
+          "monthly": {
+            "steady": 20,
+            "variable": 38,
+            "intermittent": 20,
+            "sparse": 2
+          }
+        },
+        "fallback_a0": {
+          "weekly": {
+            "steady": true,
+            "variable": true,
+            "intermittent": true,
+            "sparse": true
+          },
+          "monthly": {
+            "steady": true,
+            "variable": true,
+            "intermittent": true,
+            "sparse": true
+          }
+        }
+      },
+      "ablation_group_no_reg": {
+        "lambda": 0.0,
+        "a0": {
+          "weekly": 1.0,
+          "monthly": 0.978
+        },
+        "weights": {
+          "weekly": {
+            "steady": 0.6024,
+            "variable": 1.0,
+            "intermittent": 1.0,
+            "sparse": 1.0
+          },
+          "monthly": {
+            "steady": 0.5591,
+            "variable": 0.916,
+            "intermittent": 0.9907,
+            "sparse": 0.978
+          }
+        },
+        "n_obs": {
+          "weekly": {
+            "steady": 20,
+            "variable": 38,
+            "intermittent": 20,
+            "sparse": 2
+          },
+          "monthly": {
+            "steady": 20,
+            "variable": 38,
+            "intermittent": 20,
+            "sparse": 2
+          }
+        },
+        "fallback_a0": {
+          "weekly": {
+            "steady": false,
+            "variable": false,
+            "intermittent": false,
+            "sparse": true
+          },
+          "monthly": {
+            "steady": false,
+            "variable": false,
+            "intermittent": false,
+            "sparse": true
+          }
+        }
+      },
+      "ablation_group_reg_fixed": {
+        "lambda": 1.0,
+        "a0": {
+          "weekly": 1.0,
+          "monthly": 0.978
+        },
+        "weights": {
+          "weekly": {
+            "steady": 0.9981,
+            "variable": 1.0,
+            "intermittent": 1.0,
+            "sparse": 1.0
+          },
+          "monthly": {
+            "steady": 0.9758,
+            "variable": 0.976,
+            "intermittent": 0.9821,
+            "sparse": 0.978
+          }
+        },
+        "n_obs": {
+          "weekly": {
+            "steady": 20,
+            "variable": 38,
+            "intermittent": 20,
+            "sparse": 2
+          },
+          "monthly": {
+            "steady": 20,
+            "variable": 38,
+            "intermittent": 20,
+            "sparse": 2
+          }
+        },
+        "fallback_a0": {
+          "weekly": {
+            "steady": false,
+            "variable": false,
+            "intermittent": false,
+            "sparse": true
+          },
+          "monthly": {
+            "steady": false,
+            "variable": false,
+            "intermittent": false,
+            "sparse": true
+          }
+        }
+      }
+    }
+  },
+  "horizons": {
+    "weekly": {
+      "days": 7,
+      "start": "2026-10-27",
+      "end": "2026-11-02"
+    },
+    "monthly": {
+      "days": 30,
+      "start": "2026-11-01",
+      "end": "2026-11-30"
+    }
+  },
+  "products": [
+    {
+      "barcode": "0000086931676",
+      "name": "Kola 2,5 L",
+      "category": "İçecek",
+      "unit": "adet",
+      "group": "variable",
+      "history": {
+        "observations": 1072,
+        "last_sale": "2026-10-26",
+        "mean_daily_90d": 7.787
+      },
+      "forecast": {
+        "weekly": {
+          "combined": 53.231,
+          "xgboost": 52.725,
+          "seasonal_naive": 57.0,
+          "weight": 0.8816,
+          "daily": [5.904, 7.047, 4.508, 9.294, 10.816, 9.889, 5.774]
+        },
+        "monthly": {
+          "combined": 222.627,
+          "xgboost": 220.175,
+          "seasonal_naive": 245.0,
+          "weight": 0.9012
+        }
+      },
+      "backtest": {
+        "weekly": {
+          "mae": {
+            "combined": 8.298,
+            "xgboost": 8.279,
+            "seasonal_naive": 9.818
+          },
+          "wape": {
+            "combined": 15.657,
+            "xgboost": 15.621,
+            "seasonal_naive": 18.525
+          },
+          "n_origins": 11
+        },
+        "monthly": {
+          "mae": {
+            "combined": 7.735,
+            "xgboost": 8.036,
+            "seasonal_naive": 21.273
+          },
+          "wape": {
+            "combined": 3.438,
+            "xgboost": 3.572,
+            "seasonal_naive": 9.455
+          },
+          "n_origins": 11
+        }
+      },
+      "stock": {
+        "lead_time_days": 2,
+        "review_days": 7,
+        "demand_over_lead_and_review": 64.176,
+        "safety_stock": 13.513,
+        "order_up_to": 78.0,
+        "pack_size": 1.0,
+        "service_level": 0.9,
+        "on_hand": null,
+        "suggested_order": null
+      },
+      "flags": []
+    },
+    {
+      "barcode": "0000087002947",
+      "name": "Çikolata & Gofret",
+      "category": "Atıştırmalık",
+      "unit": "adet",
+      "group": "variable",
+      "history": {
+        "observations": 1072,
+        "last_sale": "2026-10-26",
+        "mean_daily_90d": 11.921
+      },
+      "forecast": {
+        "weekly": {
+          "combined": 63.792,
+          "xgboost": 62.69,
+          "seasonal_naive": 72.0,
+          "weight": 0.8816,
+          "daily": [9.875, 10.146, 7.369, 10.14, 8.933, 8.556, 8.773]
+        },
+        "monthly": {
+          "combined": 269.68,
+          "xgboost": 265.918,
+          "seasonal_naive": 304.0,
+          "weight": 0.9012
+        }
+      },
+      "backtest": {
+        "weekly": {
+          "mae": {
+            "combined": 29.95,
+            "xgboost": 29.884,
+            "seasonal_naive": 36.727
+          },
+          "wape": {
+            "combined": 43.122,
+            "xgboost": 43.026,
+            "seasonal_naive": 52.88
+          },
+          "n_origins": 11
+        },
+        "monthly": {
+          "mae": {
+            "combined": 67.987,
+            "xgboost": 63.44,
+            "seasonal_naive": 120.727
+          },
+          "wape": {
+            "combined": 22.054,
+            "xgboost": 20.579,
+            "seasonal_naive": 39.162
+          },
+          "n_origins": 11
+        }
+      },
+      "stock": {
+        "lead_time_days": 2,
+        "review_days": 7,
+        "demand_over_lead_and_review": 81.307,
+        "safety_stock": 65.185,
+        "order_up_to": 147.0,
+        "pack_size": 1.0,
+        "service_level": 0.9,
+        "on_hand": null,
+        "suggested_order": null
+      },
+      "flags": []
+    },
+    {
+      "barcode": "0002707",
+      "name": "Beyaz Peynir",
+      "category": "Şarküteri",
+      "unit": "kg",
+      "group": "variable",
+      "history": {
+        "observations": 1072,
+        "last_sale": "2026-10-26",
+        "mean_daily_90d": 2.387
+      },
+      "forecast": {
+        "weekly": {
+          "combined": 16.718,
+          "xgboost": 16.557,
+          "seasonal_naive": 17.922,
+          "weight": 0.8816,
+          "daily": [2.181, 2.671, 2.127, 2.226, 2.521, 2.478, 2.515]
+        },
+        "monthly": {
+          "combined": 74.728,
+          "xgboost": 74.478,
+          "seasonal_naive": 77.007,
+          "weight": 0.9012
+        }
+      },
+      "backtest": {
+        "weekly": {
+          "mae": {
+            "combined": 2.589,
+            "xgboost": 2.567,
+            "seasonal_naive": 4.201
+          },
+          "wape": {
+            "combined": 14.326,
+            "xgboost": 14.204,
+            "seasonal_naive": 23.244
+          },
+          "n_origins": 11
+        },
+        "monthly": {
+          "mae": {
+            "combined": 5.608,
+            "xgboost": 5.666,
+            "seasonal_naive": 10.989
+          },
+          "wape": {
+            "combined": 7.525,
+            "xgboost": 7.603,
+            "seasonal_naive": 14.745
+          },
+          "n_origins": 11
+        }
+      },
+      "stock": {
+        "lead_time_days": 2,
+        "review_days": 7,
+        "demand_over_lead_and_review": 21.604,
+        "safety_stock": 4.13,
+        "order_up_to": 25.8,
+        "pack_size": 0.1,
+        "service_level": 0.9,
+        "on_hand": null,
+        "suggested_order": null
+      },
+      "flags": []
+    },
+    {
+      "barcode": "8691000000000",
+      "name": "Ekmek",
+      "category": "Ekmek & unlu mamuller",
+      "unit": "adet",
+      "group": "steady",
+      "history": {
+        "observations": 1072,
+        "last_sale": "2026-10-26",
+        "mean_daily_90d": 44.326
+      },
+      "forecast": {
+        "weekly": {
+          "combined": 308.009,
+          "xgboost": 303.27,
+          "seasonal_naive": 342.0,
+          "weight": 0.8777,
+          "daily": [42.761, 52.699, 33.002, 47.487, 46.462, 43.289, 42.308]
+        },
+        "monthly": {
+          "combined": 1321.584,
+          "xgboost": 1305.306,
+          "seasonal_naive": 1461.0,
+          "weight": 0.8954
+        }
+      },
+      "backtest": {
+        "weekly": {
+          "mae": {
+            "combined": 12.093,
+            "xgboost": 12.011,
+            "seasonal_naive": 19.545
+          },
+          "wape": {
+            "combined": 4.14,
+            "xgboost": 4.112,
+            "seasonal_naive": 6.692
+          },
+          "n_origins": 11
+        },
+        "monthly": {
+          "mae": {
+            "combined": 36.366,
+            "xgboost": 37.159,
+            "seasonal_naive": 52.727
+          },
+          "wape": {
+            "combined": 2.833,
+            "xgboost": 2.894,
+            "seasonal_naive": 4.107
+          },
+          "n_origins": 11
+        }
+      },
+      "stock": {
+        "lead_time_days": 2,
+        "review_days": 7,
+        "demand_over_lead_and_review": 394.801,
+        "safety_stock": 32.691,
+        "order_up_to": 428.0,
+        "pack_size": 1.0,
+        "service_level": 0.9,
+        "on_hand": null,
+        "suggested_order": null
+      },
+      "flags": []
+    },
+    {
+      "barcode": "8691000104729",
+      "name": "Süt 1 L",
+      "category": "Süt ürünleri",
+      "unit": "adet",
+      "group": "steady",
+      "history": {
+        "observations": 1072,
+        "last_sale": "2026-10-26",
+        "mean_daily_90d": 14.034
+      },
+      "forecast": {
+        "weekly": {
+          "combined": 95.682,
+          "xgboost": 95.498,
+          "seasonal_naive": 97.0,
+          "weight": 0.8777,
+          "daily": [14.05, 13.947, 9.494, 13.66, 16.796, 13.591, 14.143]
+        },
+        "monthly": {
+          "combined": 422.361,
+          "xgboost": 423.337,
+          "seasonal_naive": 414.0,
+          "weight": 0.8954
+        }
+      },
+      "backtest": {
+        "weekly": {
+          "mae": {
+            "combined": 8.333,
+            "xgboost": 8.358,
+            "seasonal_naive": 8.636
+          },
+          "wape": {
+            "combined": 8.206,
+            "xgboost": 8.231,
+            "seasonal_naive": 8.505
+          },
+          "n_origins": 11
+        },
+        "monthly": {
+          "mae": {
+            "combined": 29.833,
+            "xgboost": 29.884,
+            "seasonal_naive": 43.364
+          },
+          "wape": {
+            "combined": 7.125,
+            "xgboost": 7.137,
+            "seasonal_naive": 10.356
+          },
+          "n_origins": 11
+        }
+      },
+      "stock": {
+        "lead_time_days": 2,
+        "review_days": 7,
+        "demand_over_lead_and_review": 123.198,
+        "safety_stock": 20.806,
+        "order_up_to": 145.0,
+        "pack_size": 1.0,
+        "service_level": 0.9,
+        "on_hand": null,
+        "suggested_order": null
+      },
+      "flags": []
+    },
+    {
+      "barcode": "8691000209458",
+      "name": "Sigara A",
+      "category": "Tütün",
+      "unit": "adet",
+      "group": "steady",
+      "history": {
+        "observations": 1072,
+        "last_sale": "2026-10-26",
+        "mean_daily_90d": 23.18
+      },
+      "forecast": {
+        "weekly": {
+          "combined": 150.515,
+          "xgboost": 151.144,
+          "seasonal_naive": 146.0,
+          "weight": 0.8777,
+          "daily": [22.227, 22.882, 15.381, 21.822, 23.702, 22.171, 22.33]
+        },
+        "monthly": {
+          "combined": 671.584,
+          "xgboost": 676.673,
+          "seasonal_naive": 628.0,
+          "weight": 0.8954
+        }
+      },
+      "backtest": {
+        "weekly": {
+          "mae": {
+            "combined": 9.588,
+            "xgboost": 9.234,
+            "seasonal_naive": 15.091
+          },
+          "wape": {
+            "combined": 6.121,
+            "xgboost": 5.895,
+            "seasonal_naive": 9.634
+          },
+          "n_origins": 11
+        },
+        "monthly": {
+          "mae": {
+            "combined": 28.962,
+            "xgboost": 27.636,
+            "seasonal_naive": 62.636
+          },
+          "wape": {
+            "combined": 4.284,
+            "xgboost": 4.088,
+            "seasonal_naive": 9.266
+          },
+          "n_origins": 11
+        }
+      },
+      "stock": {
+        "lead_time_days": 2,
+        "review_days": 7,
+        "demand_over_lead_and_review": 195.032,
+        "safety_stock": 19.234,
+        "order_up_to": 215.0,
+        "pack_size": 1.0,
+        "service_level": 0.9,
+        "on_hand": null,
+        "suggested_order": null
+      },
+      "flags": []
+    },
+    {
+      "barcode": "8691000314187",
+      "name": "Su 0,5 L",
+      "category": "İçecek",
+      "unit": "adet",
+      "group": "steady",
+      "history": {
+        "observations": 1072,
+        "last_sale": "2026-10-26",
+        "mean_daily_90d": 37.753
+      },
+      "forecast": {
+        "weekly": {
+          "combined": 174.338,
+          "xgboost": 173.828,
+          "seasonal_naive": 178.0,
+          "weight": 0.8777,
+          "daily": [26.082, 30.739, 18.193, 24.765, 29.223, 23.727, 21.609]
+        },
+        "monthly": {
+          "combined": 682.368,
+          "xgboost": 673.42,
+          "seasonal_naive": 759.0,
+          "weight": 0.8954
+        }
+      },
+      "backtest": {
+        "weekly": {
+          "mae": {
+            "combined": 20.182,
+            "xgboost": 20.652,
+            "seasonal_naive": 16.818
+          },
+          "wape": {
+            "combined": 9.59,
+            "xgboost": 9.813,
+            "seasonal_naive": 7.991
+          },
+          "n_origins": 11
+        },
+        "monthly": {
+          "mae": {
+            "combined": 77.663,
+            "xgboost": 79.827,
+            "seasonal_naive": 70.909
+          },
+          "wape": {
+            "combined": 8.591,
+            "xgboost": 8.83,
+            "seasonal_naive": 7.844
+          },
+          "n_origins": 11
+        }
+      },
+      "stock": {
+        "lead_time_days": 2,
+        "review_days": 7,
+        "demand_over_lead_and_review": 220.376,
+        "safety_stock": 46.868,
+        "order_up_to": 268.0,
+        "pack_size": 1.0,
+        "service_level": 0.9,
+        "on_hand": null,
+        "suggested_order": null
+      },
+      "flags": []
+    },
+    {
+      "barcode": "8691000523645",
+      "name": "Cips Büyük",
+      "category": "Atıştırmalık",
+      "unit": "adet",
+      "group": "variable",
+      "history": {
+        "observations": 1072,
+        "last_sale": "2026-10-26",
+        "mean_daily_90d": 6.854
+      },
+      "forecast": {
+        "weekly": {
+          "combined": 43.373,
+          "xgboost": 43.826,
+          "seasonal_naive": 40.0,
+          "weight": 0.8816,
+          "daily": [5.15, 5.586, 4.408, 6.372, 9.775, 7.546, 4.537]
+        },
+        "monthly": {
+          "combined": 185.934,
+          "xgboost": 188.01,
+          "seasonal_naive": 167.0,
+          "weight": 0.9012
+        }
+      },
+      "backtest": {
+        "weekly": {
+          "mae": {
+            "combined": 5.912,
+            "xgboost": 5.865,
+            "seasonal_naive": 7.455
+          },
+          "wape": {
+            "combined": 13.925,
+            "xgboost": 13.815,
+            "seasonal_naive": 17.559
+          },
+          "n_origins": 11
+        },
+        "monthly": {
+          "mae": {
+            "combined": 15.275,
+            "xgboost": 14.932,
+            "seasonal_naive": 25.909
+          },
+          "wape": {
+            "combined": 7.812,
+            "xgboost": 7.636,
+            "seasonal_naive": 13.25
+          },
+          "n_origins": 11
+        }
+      },
+      "stock": {
+        "lead_time_days": 2,
+        "review_days": 7,
+        "demand_over_lead_and_review": 53.45,
+        "safety_stock": 10.761,
+        "order_up_to": 65.0,
+        "pack_size": 1.0,
+        "service_level": 0.9,
+        "on_hand": null,
+        "suggested_order": null
+      },
+      "flags": []
+    },
+    {
+      "barcode": "8691000628374",
+      "name": "Yumurta 10'lu",
+      "category": "Temel gıda",
+      "unit": "adet",
+      "group": "variable",
+      "history": {
+        "observations": 1072,
+        "last_sale": "2026-10-26",
+        "mean_daily_90d": 5.0
+      },
+      "forecast": {
+        "weekly": {
+          "combined": 35.876,
+          "xgboost": 35.59,
+          "seasonal_naive": 38.0,
+          "weight": 0.8816,
+          "daily": [4.354, 5.654, 3.902, 4.628, 7.095, 5.869, 4.375]
+        },
+        "monthly": {
+          "combined": 145.126,
+          "xgboost": 143.276,
+          "seasonal_naive": 162.0,
+          "weight": 0.9012
+        }
+      },
+      "backtest": {
+        "weekly": {
+          "mae": {
+            "combined": 7.618,
+            "xgboost": 7.697,
+            "seasonal_naive": 7.818
+          },
+          "wape": {
+            "combined": 23.942,
+            "xgboost": 24.189,
+            "seasonal_naive": 24.571
+          },
+          "n_origins": 11
+        },
+        "monthly": {
+          "mae": {
+            "combined": 20.631,
+            "xgboost": 20.229,
+            "seasonal_naive": 37.545
+          },
+          "wape": {
+            "combined": 14.679,
+            "xgboost": 14.393,
+            "seasonal_naive": 26.714
+          },
+          "n_origins": 11
+        }
+      },
+      "stock": {
+        "lead_time_days": 2,
+        "review_days": 7,
+        "demand_over_lead_and_review": 44.509,
+        "safety_stock": 21.02,
+        "order_up_to": 66.0,
+        "pack_size": 1.0,
+        "service_level": 0.9,
+        "on_hand": null,
+        "suggested_order": null
+      },
+      "flags": []
+    },
+    {
+      "barcode": "8691000837832",
+      "name": "Ayran 300 ml",
+      "category": "Süt ürünleri",
+      "unit": "adet",
+      "group": "variable",
+      "history": {
+        "observations": 1072,
+        "last_sale": "2026-10-26",
+        "mean_daily_90d": 14.933
+      },
+      "forecast": {
+        "weekly": {
+          "combined": 93.107,
+          "xgboost": 92.719,
+          "seasonal_naive": 96.0,
+          "weight": 0.8816,
+          "daily": [13.323, 16.36, 11.299, 13.291, 13.49, 12.492, 12.852]
+        },
+        "monthly": {
+          "combined": 412.655,
+          "xgboost": 413.494,
+          "seasonal_naive": 405.0,
+          "weight": 0.9012
+        }
+      },
+      "backtest": {
+        "weekly": {
+          "mae": {
+            "combined": 8.557,
+            "xgboost": 8.539,
+            "seasonal_naive": 8.818
+          },
+          "wape": {
+            "combined": 10.576,
+            "xgboost": 10.554,
+            "seasonal_naive": 10.899
+          },
+          "n_origins": 11
+        },
+        "monthly": {
+          "mae": {
+            "combined": 26.682,
+            "xgboost": 26.011,
+            "seasonal_naive": 40.636
+          },
+          "wape": {
+            "combined": 7.406,
+            "xgboost": 7.22,
+            "seasonal_naive": 11.279
+          },
+          "n_origins": 11
+        }
+      },
+      "stock": {
+        "lead_time_days": 2,
+        "review_days": 7,
+        "demand_over_lead_and_review": 120.583,
+        "safety_stock": 17.735,
+        "order_up_to": 139.0,
+        "pack_size": 1.0,
+        "service_level": 0.9,
+        "on_hand": null,
+        "suggested_order": null
+      },
+      "flags": []
+    },
+    {
+      "barcode": "8691000942561",
+      "name": "Sigara B",
+      "category": "Tütün",
+      "unit": "adet",
+      "group": "steady",
+      "history": {
+        "observations": 1072,
+        "last_sale": "2026-10-26",
+        "mean_daily_90d": 15.079
+      },
+      "forecast": {
+        "weekly": {
+          "combined": 110.768,
+          "xgboost": 110.875,
+          "seasonal_naive": 110.0,
+          "weight": 0.8777,
+          "daily": [16.043, 19.155, 11.506, 15.856, 17.202, 15.275, 15.73]
+        },
+        "monthly": {
+          "combined": 462.648,
+          "xgboost": 461.439,
+          "seasonal_naive": 473.0,
+          "weight": 0.8954
+        }
+      },
+      "backtest": {
+        "weekly": {
+          "mae": {
+            "combined": 8.934,
+            "xgboost": 9.086,
+            "seasonal_naive": 13.0
+          },
+          "wape": {
+            "combined": 8.393,
+            "xgboost": 8.535,
+            "seasonal_naive": 12.212
+          },
+          "n_origins": 11
+        },
+        "monthly": {
+          "mae": {
+            "combined": 15.052,
+            "xgboost": 15.501,
+            "seasonal_naive": 46.273
+          },
+          "wape": {
+            "combined": 3.346,
+            "xgboost": 3.446,
+            "seasonal_naive": 10.287
+          },
+          "n_origins": 11
+        }
+      },
+      "stock": {
+        "lead_time_days": 2,
+        "review_days": 7,
+        "demand_over_lead_and_review": 142.06,
+        "safety_stock": 11.776,
+        "order_up_to": 154.0,
+        "pack_size": 1.0,
+        "service_level": 0.9,
+        "on_hand": null,
+        "suggested_order": null
+      },
+      "flags": []
+    },
+    {
+      "barcode": "8691001047290",
+      "name": "Dondurma Kornet",
+      "category": "Atıştırmalık",
+      "unit": "adet",
+      "group": "variable",
+      "history": {
+        "observations": 1072,
+        "last_sale": "2026-10-26",
+        "mean_daily_90d": 6.202
+      },
+      "forecast": {
+        "weekly": {
+          "combined": 28.401,
+          "xgboost": 29.261,
+          "seasonal_naive": 22.0,
+          "weight": 0.8816,
+          "daily": [3.628, 5.269, 3.032, 4.423, 4.348, 3.863, 3.838]
+        },
+        "monthly": {
+          "combined": 107.736,
+          "xgboost": 109.461,
+          "seasonal_naive": 92.0,
+          "weight": 0.9012
+        }
+      },
+      "backtest": {
+        "weekly": {
+          "mae": {
+            "combined": 5.516,
+            "xgboost": 5.661,
+            "seasonal_naive": 4.545
+          },
+          "wape": {
+            "combined": 19.635,
+            "xgboost": 20.153,
+            "seasonal_naive": 16.181
+          },
+          "n_origins": 11
+        },
+        "monthly": {
+          "mae": {
+            "combined": 22.231,
+            "xgboost": 21.595,
+            "seasonal_naive": 31.545
+          },
+          "wape": {
+            "combined": 17.682,
+            "xgboost": 17.176,
+            "seasonal_naive": 25.09
+          },
+          "n_origins": 11
+        }
+      },
+      "stock": {
+        "lead_time_days": 2,
+        "review_days": 7,
+        "demand_over_lead_and_review": 35.907,
+        "safety_stock": 7.785,
+        "order_up_to": 44.0,
+        "pack_size": 1.0,
+        "service_level": 0.9,
+        "on_hand": null,
+        "suggested_order": null
+      },
+      "flags": []
+    },
+    {
+      "barcode": "8691001152019",
+      "name": "Enerji İçeceği",
+      "category": "İçecek",
+      "unit": "adet",
+      "group": "variable",
+      "history": {
+        "observations": 1072,
+        "last_sale": "2026-10-26",
+        "mean_daily_90d": 9.82
+      },
+      "forecast": {
+        "weekly": {
+          "combined": 63.689,
+          "xgboost": 63.379,
+          "seasonal_naive": 66.0,
+          "weight": 0.8816,
+          "daily": [8.372, 11.654, 6.022, 10.193, 10.281, 9.209, 7.958]
+        },
+        "monthly": {
+          "combined": 255.523,
+          "xgboost": 252.292,
+          "seasonal_naive": 285.0,
+          "weight": 0.9012
+        }
+      },
+      "backtest": {
+        "weekly": {
+          "mae": {
+            "combined": 8.726,
+            "xgboost": 8.759,
+            "seasonal_naive": 7.273
+          },
+          "wape": {
+            "combined": 14.241,
+            "xgboost": 14.295,
+            "seasonal_naive": 11.869
+          },
+          "n_origins": 11
+        },
+        "monthly": {
+          "mae": {
+            "combined": 27.089,
+            "xgboost": 27.96,
+            "seasonal_naive": 25.727
+          },
+          "wape": {
+            "combined": 10.35,
+            "xgboost": 10.683,
+            "seasonal_naive": 9.83
+          },
+          "n_origins": 11
+        }
+      },
+      "stock": {
+        "lead_time_days": 2,
+        "review_days": 7,
+        "demand_over_lead_and_review": 79.652,
+        "safety_stock": 17.638,
+        "order_up_to": 98.0,
+        "pack_size": 1.0,
+        "service_level": 0.9,
+        "on_hand": null,
+        "suggested_order": null
+      },
+      "flags": []
+    },
+    {
+      "barcode": "8691001256748",
+      "name": "Gazete",
+      "category": "Diğer",
+      "unit": "adet",
+      "group": "variable",
+      "history": {
+        "observations": 1072,
+        "last_sale": "2026-10-26",
+        "mean_daily_90d": 2.584
+      },
+      "forecast": {
+        "weekly": {
+          "combined": 18.22,
+          "xgboost": 17.981,
+          "seasonal_naive": 20.0,
+          "weight": 0.8816,
+          "daily": [2.929, 2.981, 2.033, 2.557, 2.477, 2.314, 2.929]
+        },
+        "monthly": {
+          "combined": 79.124,
+          "xgboost": 78.37,
+          "seasonal_naive": 86.0,
+          "weight": 0.9012
+        }
+      },
+      "backtest": {
+        "weekly": {
+          "mae": {
+            "combined": 2.914,
+            "xgboost": 2.929,
+            "seasonal_naive": 5.364
+          },
+          "wape": {
+            "combined": 12.234,
+            "xgboost": 12.299,
+            "seasonal_naive": 22.519
+          },
+          "n_origins": 11
+        },
+        "monthly": {
+          "mae": {
+            "combined": 15.975,
+            "xgboost": 17.118,
+            "seasonal_naive": 12.091
+          },
+          "wape": {
+            "combined": 15.831,
+            "xgboost": 16.964,
+            "seasonal_naive": 11.982
+          },
+          "n_origins": 11
+        }
+      },
+      "stock": {
+        "lead_time_days": 2,
+        "review_days": 7,
+        "demand_over_lead_and_review": 23.802,
+        "safety_stock": 1.777,
+        "order_up_to": 26.0,
+        "pack_size": 1.0,
+        "service_level": 0.9,
+        "on_hand": null,
+        "suggested_order": null
+      },
+      "flags": []
+    },
+    {
+      "barcode": "8691001466206",
+      "name": "Lokum 500 g",
+      "category": "Temel gıda",
+      "unit": "adet",
+      "group": "intermittent",
+      "history": {
+        "observations": 1072,
+        "last_sale": "2026-10-25",
+        "mean_daily_90d": 0.685
+      },
+      "forecast": {
+        "weekly": {
+          "combined": 5.421,
+          "xgboost": 5.77,
+          "seasonal_naive": 3.0,
+          "weight": 0.8739,
+          "daily": [0.576, 1.918, 0.353, 0.722, 0.604, 0.673, 0.576]
+        },
+        "monthly": {
+          "combined": 19.144,
+          "xgboost": 19.915,
+          "seasonal_naive": 13.0,
+          "weight": 0.8886
+        }
+      },
+      "backtest": {
+        "weekly": {
+          "mae": {
+            "combined": 1.718,
+            "xgboost": 1.677,
+            "seasonal_naive": 2.727
+          },
+          "wape": {
+            "combined": 51.061,
+            "xgboost": 49.867,
+            "seasonal_naive": 81.081
+          },
+          "n_origins": 11
+        },
+        "monthly": {
+          "mae": {
+            "combined": 4.489,
+            "xgboost": 4.156,
+            "seasonal_naive": 12.0
+          },
+          "wape": {
+            "combined": 22.549,
+            "xgboost": 20.873,
+            "seasonal_naive": 60.274
+          },
+          "n_origins": 11
+        }
+      },
+      "stock": {
+        "lead_time_days": 2,
+        "review_days": 7,
+        "demand_over_lead_and_review": 6.573,
+        "safety_stock": 1.699,
+        "order_up_to": 9.0,
+        "pack_size": 1.0,
+        "service_level": 0.9,
+        "on_hand": null,
+        "suggested_order": null
+      },
+      "flags": []
+    },
+    {
+      "barcode": "8691001570935",
+      "name": "Pil AA",
+      "category": "Diğer",
+      "unit": "adet",
+      "group": "intermittent",
+      "history": {
+        "observations": 1071,
+        "last_sale": "2026-10-22",
+        "mean_daily_90d": 0.753
+      },
+      "forecast": {
+        "weekly": {
+          "combined": 6.055,
+          "xgboost": 5.486,
+          "seasonal_naive": 10.0,
+          "weight": 0.8739,
+          "daily": [0.616, 2.908, 0.413, 0.536, 0.561, 0.504, 0.516]
+        },
+        "monthly": {
+          "combined": 20.755,
+          "xgboost": 18.342,
+          "seasonal_naive": 40.0,
+          "weight": 0.8886
+        }
+      },
+      "backtest": {
+        "weekly": {
+          "mae": {
+            "combined": 2.967,
+            "xgboost": 2.905,
+            "seasonal_naive": 4.091
+          },
+          "wape": {
+            "combined": 62.764,
+            "xgboost": 61.448,
+            "seasonal_naive": 86.538
+          },
+          "n_origins": 11
+        },
+        "monthly": {
+          "mae": {
+            "combined": 6.016,
+            "xgboost": 5.643,
+            "seasonal_naive": 13.091
+          },
+          "wape": {
+            "combined": 31.661,
+            "xgboost": 29.701,
+            "seasonal_naive": 68.9
+          },
+          "n_origins": 11
+        }
+      },
+      "stock": {
+        "lead_time_days": 2,
+        "review_days": 7,
+        "demand_over_lead_and_review": 8.299,
+        "safety_stock": 2.357,
+        "order_up_to": 11.0,
+        "pack_size": 1.0,
+        "service_level": 0.9,
+        "on_hand": null,
+        "suggested_order": null
+      },
+      "flags": []
+    },
+    {
+      "barcode": "8691001675664",
+      "name": "Ampul",
+      "category": "Diğer",
+      "unit": "adet",
+      "group": "intermittent",
+      "history": {
+        "observations": 1071,
+        "last_sale": "2026-10-18",
+        "mean_daily_90d": 0.202
+      },
+      "forecast": {
+        "weekly": {
+          "combined": 2.18,
+          "xgboost": 2.494,
+          "seasonal_naive": 0.0,
+          "weight": 0.8739,
+          "daily": [0.288, 0.448, 0.084, 0.349, 0.39, 0.333, 0.288]
+        },
+        "monthly": {
+          "combined": 9.858,
+          "xgboost": 11.094,
+          "seasonal_naive": 0.0,
+          "weight": 0.8886
+        }
+      },
+      "backtest": {
+        "weekly": {
+          "mae": {
+            "combined": 1.953,
+            "xgboost": 2.03,
+            "seasonal_naive": 1.273
+          },
+          "wape": {
+            "combined": 214.878,
+            "xgboost": 223.301,
+            "seasonal_naive": 140.0
+          },
+          "n_origins": 11
+        },
+        "monthly": {
+          "mae": {
+            "combined": 6.734,
+            "xgboost": 7.115,
+            "seasonal_naive": 5.818
+          },
+          "wape": {
+            "combined": 108.93,
+            "xgboost": 115.096,
+            "seasonal_naive": 94.118
+          },
+          "n_origins": 11
+        }
+      },
+      "stock": {
+        "lead_time_days": 2,
+        "review_days": 7,
+        "demand_over_lead_and_review": 2.755,
+        "safety_stock": 2.314,
+        "order_up_to": 6.0,
+        "pack_size": 1.0,
+        "service_level": 0.9,
+        "on_hand": null,
+        "suggested_order": null
+      },
+      "flags": []
+    },
+    {
+      "barcode": "8691001780393",
+      "name": "Kibrit",
+      "category": "Diğer",
+      "unit": "adet",
+      "group": "intermittent",
+      "history": {
+        "observations": 1071,
+        "last_sale": "2026-10-24",
+        "mean_daily_90d": 0.674
+      },
+      "forecast": {
+        "weekly": {
+          "combined": 4.368,
+          "xgboost": 4.566,
+          "seasonal_naive": 3.0,
+          "weight": 0.8739,
+          "daily": [0.576, 0.736, 0.324, 0.596, 0.982, 0.579, 0.576]
+        },
+        "monthly": {
+          "combined": 19.195,
+          "xgboost": 20.097,
+          "seasonal_naive": 12.0,
+          "weight": 0.8886
+        }
+      },
+      "backtest": {
+        "weekly": {
+          "mae": {
+            "combined": 2.915,
+            "xgboost": 2.868,
+            "seasonal_naive": 4.727
+          },
+          "wape": {
+            "combined": 48.579,
+            "xgboost": 47.795,
+            "seasonal_naive": 78.788
+          },
+          "n_origins": 11
+        },
+        "monthly": {
+          "mae": {
+            "combined": 5.145,
+            "xgboost": 4.678,
+            "seasonal_naive": 13.727
+          },
+          "wape": {
+            "combined": 24.287,
+            "xgboost": 22.083,
+            "seasonal_naive": 64.807
+          },
+          "n_origins": 11
+        }
+      },
+      "stock": {
+        "lead_time_days": 2,
+        "review_days": 7,
+        "demand_over_lead_and_review": 5.52,
+        "safety_stock": 6.352,
+        "order_up_to": 12.0,
+        "pack_size": 1.0,
+        "service_level": 0.9,
+        "on_hand": null,
+        "suggested_order": null
+      },
+      "flags": []
+    },
+    {
+      "barcode": "8691001885122",
+      "name": "Şampuan",
+      "category": "Temizlik",
+      "unit": "adet",
+      "group": "intermittent",
+      "history": {
+        "observations": 1065,
+        "last_sale": "2026-10-26",
+        "mean_daily_90d": 1.124
+      },
+      "forecast": {
+        "weekly": {
+          "combined": 5.219,
+          "xgboost": 5.106,
+          "seasonal_naive": 6.0,
+          "weight": 0.8739,
+          "daily": [0.656, 0.925, 0.387, 0.785, 0.861, 0.589, 1.017]
+        },
+        "monthly": {
+          "combined": 22.446,
+          "xgboost": 21.875,
+          "seasonal_naive": 27.0,
+          "weight": 0.8886
+        }
+      },
+      "backtest": {
+        "weekly": {
+          "mae": {
+            "combined": 1.939,
+            "xgboost": 2.035,
+            "seasonal_naive": 2.364
+          },
+          "wape": {
+            "combined": 32.324,
+            "xgboost": 33.92,
+            "seasonal_naive": 39.394
+          },
+          "n_origins": 11
+        },
+        "monthly": {
+          "mae": {
+            "combined": 6.067,
+            "xgboost": 6.207,
+            "seasonal_naive": 9.909
+          },
+          "wape": {
+            "combined": 23.171,
+            "xgboost": 23.709,
+            "seasonal_naive": 37.847
+          },
+          "n_origins": 11
+        }
+      },
+      "stock": {
+        "lead_time_days": 2,
+        "review_days": 7,
+        "demand_over_lead_and_review": 6.622,
+        "safety_stock": 5.268,
+        "order_up_to": 12.0,
+        "pack_size": 1.0,
+        "service_level": 0.9,
+        "on_hand": null,
+        "suggested_order": null
+      },
+      "flags": []
+    },
+    {
+      "barcode": "8691001989851",
+      "name": "Yeni Soğuk Çay",
+      "category": "İçecek",
+      "unit": "adet",
+      "group": "variable",
+      "history": {
+        "observations": 480,
+        "last_sale": "2026-10-26",
+        "mean_daily_90d": 5.281
+      },
+      "forecast": {
+        "weekly": {
+          "combined": 33.074,
+          "xgboost": 33.756,
+          "seasonal_naive": 28.0,
+          "weight": 0.8816,
+          "daily": [4.168, 5.813, 3.599, 5.239, 4.747, 5.032, 4.477]
+        },
+        "monthly": {
+          "combined": 139.574,
+          "xgboost": 141.5,
+          "seasonal_naive": 122.0,
+          "weight": 0.9012
+        }
+      },
+      "backtest": {
+        "weekly": {
+          "mae": {
+            "combined": 7.927,
+            "xgboost": 7.963,
+            "seasonal_naive": 6.909
+          },
+          "wape": {
+            "combined": 23.629,
+            "xgboost": 23.739,
+            "seasonal_naive": 20.596
+          },
+          "n_origins": 11
+        },
+        "monthly": {
+          "mae": {
+            "combined": 14.131,
+            "xgboost": 14.153,
+            "seasonal_naive": 20.818
+          },
+          "wape": {
+            "combined": 9.832,
+            "xgboost": 9.847,
+            "seasonal_naive": 14.485
+          },
+          "n_origins": 11
+        }
+      },
+      "stock": {
+        "lead_time_days": 2,
+        "review_days": 7,
+        "demand_over_lead_and_review": 41.819,
+        "safety_stock": 10.011,
+        "order_up_to": 52.0,
+        "pack_size": 1.0,
+        "service_level": 0.9,
+        "on_hand": null,
+        "suggested_order": null
+      },
+      "flags": []
+    }
+  ],
+  "evaluation": {
+    "origins": [
+      "2025-10-31",
+      "2025-11-30",
+      "2025-12-31",
+      "2026-01-31",
+      "2026-02-28",
+      "2026-03-31",
+      "2026-04-30",
+      "2026-05-31",
+      "2026-06-30",
+      "2026-07-31",
+      "2026-08-31"
+    ],
+    "internal_origins": ["2025-06-30", "2025-07-31", "2025-08-31", "2025-09-30"],
+    "pilot_products": [
+      "8691000000000",
+      "8691000314187",
+      "8691000209458",
+      "8691000942561",
+      "8691000104729",
+      "8691000837832",
+      "0000087002947",
+      "0000086931676",
+      "8691001256748",
+      "8691000523645",
+      "8691000628374",
+      "8691001152019",
+      "8691001047290",
+      "8691001989851",
+      "8691001885122",
+      "8691001466206",
+      "8691001780393",
+      "8691001570935",
+      "8691001675664"
+    ],
+    "summary": {
+      "weekly": {
+        "wape_pilot": {
+          "combined": 11.8883,
+          "xgboost": 11.9182,
+          "seasonal_naive": 13.9424,
+          "ablation_common_weight": 11.9182,
+          "ablation_group_no_reg": 12.1438,
+          "ablation_group_reg_fixed": 11.9184
+        },
+        "mae_mean": {
+          "combined": 8.2126,
+          "xgboost": 8.2333,
+          "seasonal_naive": 9.6316,
+          "ablation_common_weight": 8.2333,
+          "ablation_group_no_reg": 8.3891,
+          "ablation_group_reg_fixed": 8.2334
+        },
+        "spread": {
+          "combined": {
+            "min": 5.5684,
+            "max": 16.2449,
+            "std": 3.1022,
+            "mean": 11.7817
+          },
+          "xgboost": {
+            "min": 5.4512,
+            "max": 16.2499,
+            "std": 3.1672,
+            "mean": 11.8045
+          },
+          "seasonal_naive": {
+            "min": 8.2938,
+            "max": 23.0712,
+            "std": 4.0013,
+            "mean": 13.962
+          },
+          "ablation_common_weight": {
+            "min": 5.4512,
+            "max": 16.2499,
+            "std": 3.1672,
+            "mean": 11.8045
+          },
+          "ablation_group_no_reg": {
+            "min": 5.5456,
+            "max": 15.3622,
+            "std": 3.0486,
+            "mean": 12.0674
+          },
+          "ablation_group_reg_fixed": {
+            "min": 5.4517,
+            "max": 16.2449,
+            "std": 3.1663,
+            "mean": 11.8049
+          }
+        },
+        "wape_by_unit": {
+          "adet": {
+            "combined": 11.8883,
+            "xgboost": 11.9182,
+            "seasonal_naive": 13.9424,
+            "ablation_common_weight": 11.9182,
+            "ablation_group_no_reg": 12.1438,
+            "ablation_group_reg_fixed": 11.9184
+          },
+          "kg": {
+            "combined": 14.3265,
+            "xgboost": 14.2043,
+            "seasonal_naive": 23.2444,
+            "ablation_common_weight": 14.2043,
+            "ablation_group_no_reg": 14.2043,
+            "ablation_group_reg_fixed": 14.2043
+          }
+        },
+        "wape_by_group_adet": {
+          "intermittent": {
+            "combined": 54.7244,
+            "xgboost": 54.8337,
+            "seasonal_naive": 72.2944,
+            "ablation_common_weight": 54.8337,
+            "ablation_group_no_reg": 54.8337,
+            "ablation_group_reg_fixed": 54.8337,
+            "n": 55
+          },
+          "steady": {
+            "combined": 6.5478,
+            "xgboost": 6.5727,
+            "seasonal_naive": 8.2826,
+            "ablation_common_weight": 6.5727,
+            "ablation_group_no_reg": 6.9267,
+            "ablation_group_reg_fixed": 6.573,
+            "n": 53
+          },
+          "variable": {
+            "combined": 19.7249,
+            "xgboost": 19.7603,
+            "seasonal_naive": 21.6497,
+            "ablation_common_weight": 19.7603,
+            "ablation_group_no_reg": 19.7603,
+            "ablation_group_reg_fixed": 19.7603,
+            "n": 101
+          }
+        },
+        "bootstrap_ci_wape_diff": {
+          "combined_minus_xgboost": {
+            "estimate": -0.0299,
+            "lo": -0.1273,
+            "hi": 0.0536,
+            "level": 0.95,
+            "block_length": 2,
+            "n_boot": 500,
+            "n_origins": 11
+          },
+          "combined_minus_seasonal_naive": {
+            "estimate": -2.0541,
+            "lo": -3.6751,
+            "hi": -0.492,
+            "level": 0.95,
+            "block_length": 2,
+            "n_boot": 500,
+            "n_origins": 11
+          }
+        },
+        "n_origins": 11,
+        "n_pilot_products": 19
+      },
+      "monthly": {
+        "wape_pilot": {
+          "combined": 7.6332,
+          "xgboost": 7.5842,
+          "seasonal_naive": 11.7246,
+          "ablation_common_weight": 7.5845,
+          "ablation_group_no_reg": 7.9382,
+          "ablation_group_reg_fixed": 7.5833
+        },
+        "mae_mean": {
+          "combined": 22.8454,
+          "xgboost": 22.6989,
+          "seasonal_naive": 35.0909,
+          "ablation_common_weight": 22.6999,
+          "ablation_group_no_reg": 23.7583,
+          "ablation_group_reg_fixed": 22.6962
+        },
+        "spread": {
+          "combined": {
+            "min": 3.9806,
+            "max": 12.9075,
+            "std": 2.5043,
+            "mean": 7.6375
+          },
+          "xgboost": {
+            "min": 4.0024,
+            "max": 12.1794,
+            "std": 2.3277,
+            "mean": 7.5931
+          },
+          "seasonal_naive": {
+            "min": 8.8287,
+            "max": 20.4707,
+            "std": 3.2226,
+            "mean": 11.7956
+          },
+          "ablation_common_weight": {
+            "min": 3.9955,
+            "max": 12.3015,
+            "std": 2.3609,
+            "mean": 7.5909
+          },
+          "ablation_group_no_reg": {
+            "min": 5.0173,
+            "max": 13.0892,
+            "std": 2.2216,
+            "mean": 7.9561
+          },
+          "ablation_group_reg_fixed": {
+            "min": 3.9936,
+            "max": 12.3109,
+            "std": 2.364,
+            "mean": 7.5895
+          }
+        },
+        "wape_by_unit": {
+          "adet": {
+            "combined": 7.6332,
+            "xgboost": 7.5842,
+            "seasonal_naive": 11.7246,
+            "ablation_common_weight": 7.5845,
+            "ablation_group_no_reg": 7.9382,
+            "ablation_group_reg_fixed": 7.5833
+          },
+          "kg": {
+            "combined": 7.5254,
+            "xgboost": 7.6029,
+            "seasonal_naive": 14.7446,
+            "ablation_common_weight": 7.6297,
+            "ablation_group_no_reg": 7.7052,
+            "ablation_group_reg_fixed": 7.6321
+          }
+        },
+        "wape_by_group_adet": {
+          "intermittent": {
+            "combined": 30.7716,
+            "xgboost": 30.0673,
+            "seasonal_naive": 58.9971,
+            "ablation_common_weight": 30.3358,
+            "ablation_group_no_reg": 30.1804,
+            "ablation_group_reg_fixed": 30.2862,
+            "n": 55
+          },
+          "steady": {
+            "combined": 4.632,
+            "xgboost": 4.6839,
+            "seasonal_naive": 7.1208,
+            "ablation_common_weight": 4.6595,
+            "ablation_group_no_reg": 5.1561,
+            "ablation_group_reg_fixed": 4.6572,
+            "n": 53
+          },
+          "variable": {
+            "combined": 11.9465,
+            "xgboost": 11.7469,
+            "seasonal_naive": 17.7976,
+            "ablation_common_weight": 11.7792,
+            "ablation_group_no_reg": 11.9,
+            "ablation_group_reg_fixed": 11.7821,
+            "n": 101
+          }
+        },
+        "bootstrap_ci_wape_diff": {
+          "combined_minus_xgboost": {
+            "estimate": 0.049,
+            "lo": -0.0815,
+            "hi": 0.2133,
+            "level": 0.95,
+            "block_length": 2,
+            "n_boot": 500,
+            "n_origins": 11
+          },
+          "combined_minus_seasonal_naive": {
+            "estimate": -4.0915,
+            "lo": -5.2946,
+            "hi": -2.6131,
+            "level": 0.95,
+            "block_length": 2,
+            "n_boot": 500,
+            "n_origins": 11
+          }
+        },
+        "n_origins": 11,
+        "n_pilot_products": 19
+      }
+    },
+    "relative_improvement_vs_xgboost_pct": {
+      "weekly": 0.2507,
+      "monthly": -0.6455
+    },
+    "per_origin": [
+      {
+        "origin": "2025-10-31",
+        "weekly": {
+          "start": "2025-11-01",
+          "end": "2025-11-07",
+          "evaluated_days": 7,
+          "wape_pilot": {
+            "combined": 16.2449,
+            "xgboost": 16.2499,
+            "seasonal_naive": 13.0401,
+            "ablation_common_weight": 16.2499,
+            "ablation_group_no_reg": 15.2322,
+            "ablation_group_reg_fixed": 16.2449
+          },
+          "actual_pilot": 1296.0
+        },
+        "monthly": {
+          "start": "2025-11-01",
+          "end": "2025-11-30",
+          "evaluated_days": 29,
+          "wape_pilot": {
+            "combined": 7.9402,
+            "xgboost": 7.9875,
+            "seasonal_naive": 10.8811,
+            "ablation_common_weight": 7.9442,
+            "ablation_group_no_reg": 7.4972,
+            "ablation_group_reg_fixed": 7.9402
+          },
+          "actual_pilot": 5266.0
+        },
+        "version": {
+          "lambda": 1.0,
+          "a0": {
+            "weekly": 1.0,
+            "monthly": 0.978
+          },
+          "weights": {
+            "weekly": {
+              "steady": 0.9981,
+              "variable": 1.0,
+              "intermittent": 1.0,
+              "sparse": 1.0
+            },
+            "monthly": {
+              "steady": 0.9758,
+              "variable": 0.976,
+              "intermittent": 0.9821,
+              "sparse": 0.978
+            }
+          },
+          "n_validation_obs": {
+            "weekly": {
+              "steady": 20,
+              "variable": 38,
+              "intermittent": 20,
+              "sparse": 2
+            },
+            "monthly": {
+              "steady": 20,
+              "variable": 38,
+              "intermittent": 20,
+              "sparse": 2
+            }
+          },
+          "group_thresholds": {
+            "zero_ratio_intermittent": 0.5,
+            "cv_split": [0.3932],
+            "min_obs": 56
+          },
+          "features": {
+            "lags": [1, 7, 14, 28],
+            "ma_windows": [7, 28]
+          },
+          "xgboost_params": {
+            "eta": 0.1,
+            "max_depth": 4,
+            "min_child_weight": 1,
+            "n_estimators": 80
+          },
+          "group_counts": {
+            "variable": 10,
+            "steady": 5,
+            "intermittent": 5
+          },
+          "groups": {
+            "0000086931676": "variable",
+            "0000087002947": "variable",
+            "0002707": "variable",
+            "8691000000000": "steady",
+            "8691000104729": "steady",
+            "8691000209458": "steady",
+            "8691000314187": "steady",
+            "8691000523645": "variable",
+            "8691000628374": "variable",
+            "8691000837832": "variable",
+            "8691000942561": "steady",
+            "8691001047290": "variable",
+            "8691001152019": "variable",
+            "8691001256748": "variable",
+            "8691001466206": "intermittent",
+            "8691001570935": "intermittent",
+            "8691001675664": "intermittent",
+            "8691001780393": "intermittent",
+            "8691001885122": "intermittent",
+            "8691001989851": "variable"
+          }
+        }
+      },
+      {
+        "origin": "2025-11-30",
+        "weekly": {
+          "start": "2025-12-01",
+          "end": "2025-12-07",
+          "evaluated_days": 7,
+          "wape_pilot": {
+            "combined": 12.4224,
+            "xgboost": 12.4216,
+            "seasonal_naive": 15.9225,
+            "ablation_common_weight": 12.4216,
+            "ablation_group_no_reg": 13.0112,
+            "ablation_group_reg_fixed": 12.4245
+          },
+          "actual_pilot": 1187.0
+        },
+        "monthly": {
+          "start": "2025-12-01",
+          "end": "2025-12-31",
+          "evaluated_days": 31,
+          "wape_pilot": {
+            "combined": 7.447,
+            "xgboost": 7.4579,
+            "seasonal_naive": 11.1214,
+            "ablation_common_weight": 7.4409,
+            "ablation_group_no_reg": 7.32,
+            "ablation_group_reg_fixed": 7.4347
+          },
+          "actual_pilot": 5413.0
+        },
+        "version": {
+          "lambda": 1.0,
+          "a0": {
+            "weekly": 1.0,
+            "monthly": 0.9938
+          },
+          "weights": {
+            "weekly": {
+              "steady": 0.9975,
+              "variable": 0.9969,
+              "intermittent": 1.0,
+              "sparse": 1.0
+            },
+            "monthly": {
+              "steady": 0.9921,
+              "variable": 0.9906,
+              "intermittent": 0.9994,
+              "sparse": 0.9938
+            }
+          },
+          "n_validation_obs": {
+            "weekly": {
+              "steady": 25,
+              "variable": 48,
+              "intermittent": 25,
+              "sparse": 2
+            },
+            "monthly": {
+              "steady": 25,
+              "variable": 48,
+              "intermittent": 25,
+              "sparse": 2
+            }
+          },
+          "group_thresholds": {
+            "zero_ratio_intermittent": 0.5,
+            "cv_split": [0.3932],
+            "min_obs": 56
+          },
+          "features": {
+            "lags": [1, 7, 14, 28],
+            "ma_windows": [7, 28]
+          },
+          "xgboost_params": {
+            "eta": 0.1,
+            "max_depth": 4,
+            "min_child_weight": 1,
+            "n_estimators": 80
+          },
+          "group_counts": {
+            "variable": 10,
+            "steady": 5,
+            "intermittent": 5
+          },
+          "groups": {
+            "0000086931676": "variable",
+            "0000087002947": "variable",
+            "0002707": "variable",
+            "8691000000000": "steady",
+            "8691000104729": "steady",
+            "8691000209458": "steady",
+            "8691000314187": "steady",
+            "8691000523645": "variable",
+            "8691000628374": "variable",
+            "8691000837832": "variable",
+            "8691000942561": "steady",
+            "8691001047290": "variable",
+            "8691001152019": "variable",
+            "8691001256748": "variable",
+            "8691001466206": "intermittent",
+            "8691001570935": "intermittent",
+            "8691001675664": "intermittent",
+            "8691001780393": "intermittent",
+            "8691001885122": "intermittent",
+            "8691001989851": "variable"
+          }
+        }
+      },
+      {
+        "origin": "2025-12-31",
+        "weekly": {
+          "start": "2026-01-01",
+          "end": "2026-01-07",
+          "evaluated_days": 6,
+          "wape_pilot": {
+            "combined": 10.2681,
+            "xgboost": 10.266,
+            "seasonal_naive": 16.9908,
+            "ablation_common_weight": 10.266,
+            "ablation_group_no_reg": 12.3157,
+            "ablation_group_reg_fixed": 10.2759
+          },
+          "actual_pilot": 977.0
+        },
+        "monthly": {
+          "start": "2026-01-01",
+          "end": "2026-01-31",
+          "evaluated_days": 30,
+          "wape_pilot": {
+            "combined": 6.6891,
+            "xgboost": 6.6905,
+            "seasonal_naive": 13.8792,
+            "ablation_common_weight": 6.6656,
+            "ablation_group_no_reg": 7.924,
+            "ablation_group_reg_fixed": 6.6635
+          },
+          "actual_pilot": 5166.0
+        },
+        "version": {
+          "lambda": 1.0,
+          "a0": {
+            "weekly": 1.0,
+            "monthly": 1.0
+          },
+          "weights": {
+            "weekly": {
+              "steady": 0.9985,
+              "variable": 0.9979,
+              "intermittent": 1.0,
+              "sparse": 1.0
+            },
+            "monthly": {
+              "steady": 0.9985,
+              "variable": 0.9976,
+              "intermittent": 1.0,
+              "sparse": 1.0
+            }
+          },
+          "n_validation_obs": {
+            "weekly": {
+              "steady": 30,
+              "variable": 58,
+              "intermittent": 30,
+              "sparse": 2
+            },
+            "monthly": {
+              "steady": 30,
+              "variable": 58,
+              "intermittent": 30,
+              "sparse": 2
+            }
+          },
+          "group_thresholds": {
+            "zero_ratio_intermittent": 0.5,
+            "cv_split": [0.3932],
+            "min_obs": 56
+          },
+          "features": {
+            "lags": [1, 7, 14, 28],
+            "ma_windows": [7, 28]
+          },
+          "xgboost_params": {
+            "eta": 0.1,
+            "max_depth": 4,
+            "min_child_weight": 1,
+            "n_estimators": 80
+          },
+          "group_counts": {
+            "variable": 10,
+            "steady": 5,
+            "intermittent": 5
+          },
+          "groups": {
+            "0000086931676": "variable",
+            "0000087002947": "variable",
+            "0002707": "variable",
+            "8691000000000": "steady",
+            "8691000104729": "steady",
+            "8691000209458": "steady",
+            "8691000314187": "steady",
+            "8691000523645": "variable",
+            "8691000628374": "variable",
+            "8691000837832": "variable",
+            "8691000942561": "steady",
+            "8691001047290": "variable",
+            "8691001152019": "variable",
+            "8691001256748": "variable",
+            "8691001466206": "intermittent",
+            "8691001570935": "intermittent",
+            "8691001675664": "intermittent",
+            "8691001780393": "intermittent",
+            "8691001885122": "intermittent",
+            "8691001989851": "variable"
+          }
+        }
+      },
+      {
+        "origin": "2026-01-31",
+        "weekly": {
+          "start": "2026-02-01",
+          "end": "2026-02-07",
+          "evaluated_days": 7,
+          "wape_pilot": {
+            "combined": 8.2037,
+            "xgboost": 8.2089,
+            "seasonal_naive": 8.7809,
+            "ablation_common_weight": 8.2089,
+            "ablation_group_no_reg": 7.5288,
+            "ablation_group_reg_fixed": 8.2008
+          },
+          "actual_pilot": 1173.0
+        },
+        "monthly": {
+          "start": "2026-02-01",
+          "end": "2026-02-28",
+          "evaluated_days": 27,
+          "wape_pilot": {
+            "combined": 5.3062,
+            "xgboost": 5.6603,
+            "seasonal_naive": 9.8732,
+            "ablation_common_weight": 5.5417,
+            "ablation_group_no_reg": 6.1451,
+            "ablation_group_reg_fixed": 5.5295
+          },
+          "actual_pilot": 4497.0
+        },
+        "version": {
+          "lambda": 1.0,
+          "a0": {
+            "weekly": 1.0,
+            "monthly": 0.9347
+          },
+          "weights": {
+            "weekly": {
+              "steady": 0.9989,
+              "variable": 0.9998,
+              "intermittent": 1.0,
+              "sparse": 1.0
+            },
+            "monthly": {
+              "steady": 0.9339,
+              "variable": 0.9352,
+              "intermittent": 0.9345,
+              "sparse": 0.9347
+            }
+          },
+          "n_validation_obs": {
+            "weekly": {
+              "steady": 35,
+              "variable": 68,
+              "intermittent": 35,
+              "sparse": 2
+            },
+            "monthly": {
+              "steady": 35,
+              "variable": 68,
+              "intermittent": 35,
+              "sparse": 2
+            }
+          },
+          "group_thresholds": {
+            "zero_ratio_intermittent": 0.5,
+            "cv_split": [0.3932],
+            "min_obs": 56
+          },
+          "features": {
+            "lags": [1, 7, 14, 28],
+            "ma_windows": [7, 28]
+          },
+          "xgboost_params": {
+            "eta": 0.1,
+            "max_depth": 4,
+            "min_child_weight": 1,
+            "n_estimators": 80
+          },
+          "group_counts": {
+            "variable": 10,
+            "steady": 5,
+            "intermittent": 5
+          },
+          "groups": {
+            "0000086931676": "variable",
+            "0000087002947": "variable",
+            "0002707": "variable",
+            "8691000000000": "steady",
+            "8691000104729": "steady",
+            "8691000209458": "steady",
+            "8691000314187": "steady",
+            "8691000523645": "variable",
+            "8691000628374": "variable",
+            "8691000837832": "variable",
+            "8691000942561": "steady",
+            "8691001047290": "variable",
+            "8691001152019": "variable",
+            "8691001256748": "variable",
+            "8691001466206": "intermittent",
+            "8691001570935": "intermittent",
+            "8691001675664": "intermittent",
+            "8691001780393": "intermittent",
+            "8691001885122": "intermittent",
+            "8691001989851": "variable"
+          }
+        }
+      },
+      {
+        "origin": "2026-02-28",
+        "weekly": {
+          "start": "2026-03-01",
+          "end": "2026-03-07",
+          "evaluated_days": 7,
+          "wape_pilot": {
+            "combined": 13.3835,
+            "xgboost": 13.3832,
+            "seasonal_naive": 13.8978,
+            "ablation_common_weight": 13.3832,
+            "ablation_group_no_reg": 13.6925,
+            "ablation_group_reg_fixed": 13.3847
+          },
+          "actual_pilot": 1252.0
+        },
+        "monthly": {
+          "start": "2026-03-01",
+          "end": "2026-03-31",
+          "evaluated_days": 30,
+          "wape_pilot": {
+            "combined": 8.3615,
+            "xgboost": 8.2795,
+            "seasonal_naive": 11.354,
+            "ablation_common_weight": 8.3006,
+            "ablation_group_no_reg": 8.7092,
+            "ablation_group_reg_fixed": 8.3062
+          },
+          "actual_pilot": 5399.0
+        },
+        "version": {
+          "lambda": 1.0,
+          "a0": {
+            "weekly": 1.0,
+            "monthly": 0.9139
+          },
+          "weights": {
+            "weekly": {
+              "steady": 0.9983,
+              "variable": 0.9984,
+              "intermittent": 1.0,
+              "sparse": 1.0
+            },
+            "monthly": {
+              "steady": 0.9132,
+              "variable": 0.9149,
+              "intermittent": 0.9128,
+              "sparse": 0.9139
+            }
+          },
+          "n_validation_obs": {
+            "weekly": {
+              "steady": 40,
+              "variable": 78,
+              "intermittent": 40,
+              "sparse": 2
+            },
+            "monthly": {
+              "steady": 40,
+              "variable": 78,
+              "intermittent": 40,
+              "sparse": 2
+            }
+          },
+          "group_thresholds": {
+            "zero_ratio_intermittent": 0.5,
+            "cv_split": [0.3932],
+            "min_obs": 56
+          },
+          "features": {
+            "lags": [1, 7, 14, 28],
+            "ma_windows": [7, 28]
+          },
+          "xgboost_params": {
+            "eta": 0.1,
+            "max_depth": 4,
+            "min_child_weight": 1,
+            "n_estimators": 80
+          },
+          "group_counts": {
+            "variable": 11,
+            "intermittent": 5,
+            "steady": 4
+          },
+          "groups": {
+            "0000086931676": "variable",
+            "0000087002947": "variable",
+            "0002707": "variable",
+            "8691000000000": "steady",
+            "8691000104729": "steady",
+            "8691000209458": "steady",
+            "8691000314187": "variable",
+            "8691000523645": "variable",
+            "8691000628374": "variable",
+            "8691000837832": "variable",
+            "8691000942561": "steady",
+            "8691001047290": "variable",
+            "8691001152019": "variable",
+            "8691001256748": "variable",
+            "8691001466206": "intermittent",
+            "8691001570935": "intermittent",
+            "8691001675664": "intermittent",
+            "8691001780393": "intermittent",
+            "8691001885122": "intermittent",
+            "8691001989851": "variable"
+          }
+        }
+      },
+      {
+        "origin": "2026-03-31",
+        "weekly": {
+          "start": "2026-04-01",
+          "end": "2026-04-07",
+          "evaluated_days": 7,
+          "wape_pilot": {
+            "combined": 15.0465,
+            "xgboost": 15.024,
+            "seasonal_naive": 23.0712,
+            "ablation_common_weight": 15.024,
+            "ablation_group_no_reg": 15.3622,
+            "ablation_group_reg_fixed": 15.0256
+          },
+          "actual_pilot": 1335.0
+        },
+        "monthly": {
+          "start": "2026-04-01",
+          "end": "2026-04-30",
+          "evaluated_days": 29,
+          "wape_pilot": {
+            "combined": 12.9075,
+            "xgboost": 12.1794,
+            "seasonal_naive": 20.4707,
+            "ablation_common_weight": 12.3015,
+            "ablation_group_no_reg": 13.0892,
+            "ablation_group_reg_fixed": 12.3109
+          },
+          "actual_pilot": 5481.0
+        },
+        "version": {
+          "lambda": 1.0,
+          "a0": {
+            "weekly": 0.9987,
+            "monthly": 0.8795
+          },
+          "weights": {
+            "weekly": {
+              "steady": 0.9973,
+              "variable": 0.997,
+              "intermittent": 1.0,
+              "sparse": 0.9987
+            },
+            "monthly": {
+              "steady": 0.8791,
+              "variable": 0.881,
+              "intermittent": 0.8772,
+              "sparse": 0.8795
+            }
+          },
+          "n_validation_obs": {
+            "weekly": {
+              "steady": 44,
+              "variable": 89,
+              "intermittent": 45,
+              "sparse": 2
+            },
+            "monthly": {
+              "steady": 44,
+              "variable": 89,
+              "intermittent": 45,
+              "sparse": 2
+            }
+          },
+          "group_thresholds": {
+            "zero_ratio_intermittent": 0.5,
+            "cv_split": [0.3932],
+            "min_obs": 56
+          },
+          "features": {
+            "lags": [1, 7, 14, 28],
+            "ma_windows": [7, 28]
+          },
+          "xgboost_params": {
+            "eta": 0.1,
+            "max_depth": 4,
+            "min_child_weight": 1,
+            "n_estimators": 80
+          },
+          "group_counts": {
+            "variable": 11,
+            "intermittent": 5,
+            "steady": 4
+          },
+          "groups": {
+            "0000086931676": "variable",
+            "0000087002947": "variable",
+            "0002707": "variable",
+            "8691000000000": "steady",
+            "8691000104729": "steady",
+            "8691000209458": "steady",
+            "8691000314187": "variable",
+            "8691000523645": "variable",
+            "8691000628374": "variable",
+            "8691000837832": "variable",
+            "8691000942561": "steady",
+            "8691001047290": "variable",
+            "8691001152019": "variable",
+            "8691001256748": "variable",
+            "8691001466206": "intermittent",
+            "8691001570935": "intermittent",
+            "8691001675664": "intermittent",
+            "8691001780393": "intermittent",
+            "8691001885122": "intermittent",
+            "8691001989851": "variable"
+          }
+        }
+      },
+      {
+        "origin": "2026-04-30",
+        "weekly": {
+          "start": "2026-05-01",
+          "end": "2026-05-07",
+          "evaluated_days": 7,
+          "wape_pilot": {
+            "combined": 12.7505,
+            "xgboost": 12.8942,
+            "seasonal_naive": 11.9688,
+            "ablation_common_weight": 12.8942,
+            "ablation_group_no_reg": 13.0929,
+            "ablation_group_reg_fixed": 12.8939
+          },
+          "actual_pilot": 1412.0
+        },
+        "monthly": {
+          "start": "2026-05-01",
+          "end": "2026-05-31",
+          "evaluated_days": 30,
+          "wape_pilot": {
+            "combined": 10.1359,
+            "xgboost": 10.0312,
+            "seasonal_naive": 12.8192,
+            "ablation_common_weight": 10.0563,
+            "ablation_group_no_reg": 10.3529,
+            "ablation_group_reg_fixed": 10.0541
+          },
+          "actual_pilot": 6069.0
+        },
+        "version": {
+          "lambda": 1.0,
+          "a0": {
+            "weekly": 0.9644,
+            "monthly": 0.9156
+          },
+          "weights": {
+            "weekly": {
+              "steady": 0.9634,
+              "variable": 0.9676,
+              "intermittent": 0.9598,
+              "sparse": 0.9644
+            },
+            "monthly": {
+              "steady": 0.9152,
+              "variable": 0.9212,
+              "intermittent": 0.9078,
+              "sparse": 0.9156
+            }
+          },
+          "n_validation_obs": {
+            "weekly": {
+              "steady": 48,
+              "variable": 100,
+              "intermittent": 50,
+              "sparse": 2
+            },
+            "monthly": {
+              "steady": 48,
+              "variable": 100,
+              "intermittent": 50,
+              "sparse": 2
+            }
+          },
+          "group_thresholds": {
+            "zero_ratio_intermittent": 0.5,
+            "cv_split": [0.3932],
+            "min_obs": 56
+          },
+          "features": {
+            "lags": [1, 7, 14, 28],
+            "ma_windows": [7, 28]
+          },
+          "xgboost_params": {
+            "eta": 0.1,
+            "max_depth": 4,
+            "min_child_weight": 1,
+            "n_estimators": 80
+          },
+          "group_counts": {
+            "variable": 10,
+            "steady": 5,
+            "intermittent": 5
+          },
+          "groups": {
+            "0000086931676": "variable",
+            "0000087002947": "variable",
+            "0002707": "variable",
+            "8691000000000": "steady",
+            "8691000104729": "steady",
+            "8691000209458": "steady",
+            "8691000314187": "steady",
+            "8691000523645": "variable",
+            "8691000628374": "variable",
+            "8691000837832": "variable",
+            "8691000942561": "steady",
+            "8691001047290": "variable",
+            "8691001152019": "variable",
+            "8691001256748": "variable",
+            "8691001466206": "intermittent",
+            "8691001570935": "intermittent",
+            "8691001675664": "intermittent",
+            "8691001780393": "intermittent",
+            "8691001885122": "intermittent",
+            "8691001989851": "variable"
+          }
+        }
+      },
+      {
+        "origin": "2026-05-31",
+        "weekly": {
+          "start": "2026-06-01",
+          "end": "2026-06-07",
+          "evaluated_days": 7,
+          "wape_pilot": {
+            "combined": 10.0134,
+            "xgboost": 9.846,
+            "seasonal_naive": 14.0912,
+            "ablation_common_weight": 9.846,
+            "ablation_group_no_reg": 11.3617,
+            "ablation_group_reg_fixed": 9.8533
+          },
+          "actual_pilot": 1469.0
+        },
+        "monthly": {
+          "start": "2026-06-01",
+          "end": "2026-06-30",
+          "evaluated_days": 30,
+          "wape_pilot": {
+            "combined": 5.2056,
+            "xgboost": 5.0688,
+            "seasonal_naive": 10.9543,
+            "ablation_common_weight": 5.1135,
+            "ablation_group_no_reg": 6.4591,
+            "ablation_group_reg_fixed": 5.1131
+          },
+          "actual_pilot": 6235.0
+        },
+        "version": {
+          "lambda": 1.0,
+          "a0": {
+            "weekly": 0.9409,
+            "monthly": 0.9423
+          },
+          "weights": {
+            "weekly": {
+              "steady": 0.9398,
+              "variable": 0.9419,
+              "intermittent": 0.9396,
+              "sparse": 0.9409
+            },
+            "monthly": {
+              "steady": 0.9415,
+              "variable": 0.947,
+              "intermittent": 0.936,
+              "sparse": 0.9423
+            }
+          },
+          "n_validation_obs": {
+            "weekly": {
+              "steady": 53,
+              "variable": 110,
+              "intermittent": 55,
+              "sparse": 2
+            },
+            "monthly": {
+              "steady": 53,
+              "variable": 110,
+              "intermittent": 55,
+              "sparse": 2
+            }
+          },
+          "group_thresholds": {
+            "zero_ratio_intermittent": 0.5,
+            "cv_split": [0.3932],
+            "min_obs": 56
+          },
+          "features": {
+            "lags": [1, 7, 14, 28],
+            "ma_windows": [7, 28]
+          },
+          "xgboost_params": {
+            "eta": 0.1,
+            "max_depth": 4,
+            "min_child_weight": 1,
+            "n_estimators": 80
+          },
+          "group_counts": {
+            "variable": 10,
+            "steady": 5,
+            "intermittent": 5
+          },
+          "groups": {
+            "0000086931676": "variable",
+            "0000087002947": "variable",
+            "0002707": "variable",
+            "8691000000000": "steady",
+            "8691000104729": "steady",
+            "8691000209458": "steady",
+            "8691000314187": "steady",
+            "8691000523645": "variable",
+            "8691000628374": "variable",
+            "8691000837832": "variable",
+            "8691000942561": "steady",
+            "8691001047290": "variable",
+            "8691001152019": "variable",
+            "8691001256748": "variable",
+            "8691001466206": "intermittent",
+            "8691001570935": "intermittent",
+            "8691001675664": "intermittent",
+            "8691001780393": "intermittent",
+            "8691001885122": "intermittent",
+            "8691001989851": "variable"
+          }
+        }
+      },
+      {
+        "origin": "2026-06-30",
+        "weekly": {
+          "start": "2026-07-01",
+          "end": "2026-07-07",
+          "evaluated_days": 6,
+          "wape_pilot": {
+            "combined": 5.5684,
+            "xgboost": 5.4512,
+            "seasonal_naive": 8.2938,
+            "ablation_common_weight": 5.4512,
+            "ablation_group_no_reg": 5.5456,
+            "ablation_group_reg_fixed": 5.4517
+          },
+          "actual_pilot": 1266.0
+        },
+        "monthly": {
+          "start": "2026-07-01",
+          "end": "2026-07-31",
+          "evaluated_days": 30,
+          "wape_pilot": {
+            "combined": 3.9806,
+            "xgboost": 4.0024,
+            "seasonal_naive": 9.3253,
+            "ablation_common_weight": 3.9955,
+            "ablation_group_no_reg": 5.0173,
+            "ablation_group_reg_fixed": 3.9936
+          },
+          "actual_pilot": 6284.0
+        },
+        "version": {
+          "lambda": 1.0,
+          "a0": {
+            "weekly": 0.9324,
+            "monthly": 0.934
+          },
+          "weights": {
+            "weekly": {
+              "steady": 0.9318,
+              "variable": 0.9332,
+              "intermittent": 0.9312,
+              "sparse": 0.9324
+            },
+            "monthly": {
+              "steady": 0.9335,
+              "variable": 0.9381,
+              "intermittent": 0.9285,
+              "sparse": 0.934
+            }
+          },
+          "n_validation_obs": {
+            "weekly": {
+              "steady": 58,
+              "variable": 120,
+              "intermittent": 60,
+              "sparse": 2
+            },
+            "monthly": {
+              "steady": 58,
+              "variable": 120,
+              "intermittent": 60,
+              "sparse": 2
+            }
+          },
+          "group_thresholds": {
+            "zero_ratio_intermittent": 0.5,
+            "cv_split": [0.3932],
+            "min_obs": 56
+          },
+          "features": {
+            "lags": [1, 7, 14, 28],
+            "ma_windows": [7, 28]
+          },
+          "xgboost_params": {
+            "eta": 0.1,
+            "max_depth": 4,
+            "min_child_weight": 1,
+            "n_estimators": 80
+          },
+          "group_counts": {
+            "variable": 10,
+            "steady": 5,
+            "intermittent": 5
+          },
+          "groups": {
+            "0000086931676": "variable",
+            "0000087002947": "variable",
+            "0002707": "variable",
+            "8691000000000": "steady",
+            "8691000104729": "steady",
+            "8691000209458": "steady",
+            "8691000314187": "steady",
+            "8691000523645": "variable",
+            "8691000628374": "variable",
+            "8691000837832": "variable",
+            "8691000942561": "steady",
+            "8691001047290": "variable",
+            "8691001152019": "variable",
+            "8691001256748": "variable",
+            "8691001466206": "intermittent",
+            "8691001570935": "intermittent",
+            "8691001675664": "intermittent",
+            "8691001780393": "intermittent",
+            "8691001885122": "intermittent",
+            "8691001989851": "variable"
+          }
+        }
+      },
+      {
+        "origin": "2026-07-31",
+        "weekly": {
+          "start": "2026-08-01",
+          "end": "2026-08-07",
+          "evaluated_days": 7,
+          "wape_pilot": {
+            "combined": 11.7002,
+            "xgboost": 11.7264,
+            "seasonal_naive": 13.4369,
+            "ablation_common_weight": 11.7264,
+            "ablation_group_no_reg": 11.6336,
+            "ablation_group_reg_fixed": 11.7246
+          },
+          "actual_pilot": 1481.0
+        },
+        "monthly": {
+          "start": "2026-08-01",
+          "end": "2026-08-31",
+          "evaluated_days": 30,
+          "wape_pilot": {
+            "combined": 6.9854,
+            "xgboost": 7.02,
+            "seasonal_naive": 10.2441,
+            "ablation_common_weight": 7.0122,
+            "ablation_group_no_reg": 6.633,
+            "ablation_group_reg_fixed": 7.0125
+          },
+          "actual_pilot": 6433.0
+        },
+        "version": {
+          "lambda": 1.0,
+          "a0": {
+            "weekly": 0.9228,
+            "monthly": 0.9203
+          },
+          "weights": {
+            "weekly": {
+              "steady": 0.9222,
+              "variable": 0.9234,
+              "intermittent": 0.9219,
+              "sparse": 0.9228
+            },
+            "monthly": {
+              "steady": 0.9199,
+              "variable": 0.9242,
+              "intermittent": 0.9151,
+              "sparse": 0.9203
+            }
+          },
+          "n_validation_obs": {
+            "weekly": {
+              "steady": 63,
+              "variable": 130,
+              "intermittent": 65,
+              "sparse": 2
+            },
+            "monthly": {
+              "steady": 63,
+              "variable": 130,
+              "intermittent": 65,
+              "sparse": 2
+            }
+          },
+          "group_thresholds": {
+            "zero_ratio_intermittent": 0.5,
+            "cv_split": [0.3932],
+            "min_obs": 56
+          },
+          "features": {
+            "lags": [1, 7, 14, 28],
+            "ma_windows": [7, 28]
+          },
+          "xgboost_params": {
+            "eta": 0.1,
+            "max_depth": 4,
+            "min_child_weight": 1,
+            "n_estimators": 80
+          },
+          "group_counts": {
+            "variable": 10,
+            "steady": 5,
+            "intermittent": 5
+          },
+          "groups": {
+            "0000086931676": "variable",
+            "0000087002947": "variable",
+            "0002707": "variable",
+            "8691000000000": "steady",
+            "8691000104729": "steady",
+            "8691000209458": "steady",
+            "8691000314187": "steady",
+            "8691000523645": "variable",
+            "8691000628374": "variable",
+            "8691000837832": "variable",
+            "8691000942561": "steady",
+            "8691001047290": "variable",
+            "8691001152019": "variable",
+            "8691001256748": "variable",
+            "8691001466206": "intermittent",
+            "8691001570935": "intermittent",
+            "8691001675664": "intermittent",
+            "8691001780393": "intermittent",
+            "8691001885122": "intermittent",
+            "8691001989851": "variable"
+          }
+        }
+      },
+      {
+        "origin": "2026-08-31",
+        "weekly": {
+          "start": "2026-09-01",
+          "end": "2026-09-07",
+          "evaluated_days": 7,
+          "wape_pilot": {
+            "combined": 13.9974,
+            "xgboost": 14.3777,
+            "seasonal_naive": 14.0881,
+            "ablation_common_weight": 14.3777,
+            "ablation_group_no_reg": 13.965,
+            "ablation_group_reg_fixed": 14.3735
+          },
+          "actual_pilot": 1590.0
+        },
+        "monthly": {
+          "start": "2026-09-01",
+          "end": "2026-09-30",
+          "evaluated_days": 30,
+          "wape_pilot": {
+            "combined": 9.0531,
+            "xgboost": 9.1469,
+            "seasonal_naive": 8.8287,
+            "ablation_common_weight": 9.1281,
+            "ablation_group_no_reg": 8.3705,
+            "ablation_group_reg_fixed": 9.126
+          },
+          "actual_pilot": 6309.0
+        },
+        "version": {
+          "lambda": 1.0,
+          "a0": {
+            "weekly": 0.8571,
+            "monthly": 0.8973
+          },
+          "weights": {
+            "weekly": {
+              "steady": 0.8567,
+              "variable": 0.8614,
+              "intermittent": 0.8508,
+              "sparse": 0.8571
+            },
+            "monthly": {
+              "steady": 0.8972,
+              "variable": 0.9024,
+              "intermittent": 0.8902,
+              "sparse": 0.8973
+            }
+          },
+          "n_validation_obs": {
+            "weekly": {
+              "steady": 68,
+              "variable": 140,
+              "intermittent": 70,
+              "sparse": 2
+            },
+            "monthly": {
+              "steady": 68,
+              "variable": 140,
+              "intermittent": 70,
+              "sparse": 2
+            }
+          },
+          "group_thresholds": {
+            "zero_ratio_intermittent": 0.5,
+            "cv_split": [0.3932],
+            "min_obs": 56
+          },
+          "features": {
+            "lags": [1, 7, 14, 28],
+            "ma_windows": [7, 28]
+          },
+          "xgboost_params": {
+            "eta": 0.1,
+            "max_depth": 4,
+            "min_child_weight": 1,
+            "n_estimators": 80
+          },
+          "group_counts": {
+            "variable": 10,
+            "steady": 5,
+            "intermittent": 5
+          },
+          "groups": {
+            "0000086931676": "variable",
+            "0000087002947": "variable",
+            "0002707": "variable",
+            "8691000000000": "steady",
+            "8691000104729": "steady",
+            "8691000209458": "steady",
+            "8691000314187": "steady",
+            "8691000523645": "variable",
+            "8691000628374": "variable",
+            "8691000837832": "variable",
+            "8691000942561": "steady",
+            "8691001047290": "variable",
+            "8691001152019": "variable",
+            "8691001256748": "variable",
+            "8691001466206": "intermittent",
+            "8691001570935": "intermittent",
+            "8691001675664": "intermittent",
+            "8691001780393": "intermittent",
+            "8691001885122": "intermittent",
+            "8691001989851": "variable"
+          }
+        }
+      }
+    ],
+    "stock_simulation": {
+      "period": {
+        "start": "2025-11-01",
+        "end": "2026-09-30"
+      },
+      "products": [
+        "8691000000000",
+        "8691000314187",
+        "8691000209458",
+        "8691000942561",
+        "8691000104729",
+        "8691000837832",
+        "0000087002947",
+        "0000086931676",
+        "8691001256748",
+        "8691000523645",
+        "8691000628374",
+        "8691001152019",
+        "8691001047290",
+        "8691001989851",
+        "8691001885122",
+        "8691001466206",
+        "8691001780393",
+        "8691001570935",
+        "8691001675664"
+      ],
+      "lead_time_days": 2,
+      "review_days": 7,
+      "service_level": 0.9,
+      "assumptions": [
+        "Gözlenen satış talep yerine kullanıldı; geçmişte stok tükenmesi varsa gerçek talep daha yüksek olabilir.",
+        "Tüm yöntemler aynı başlangıç stoğu, aynı tedarik süresi, aynı gözden geçirme aralığı ve aynı sipariş kuralıyla çalıştırıldı.",
+        "Tedarik süresi sabit ve kesin kabul edildi; sipariş eksiksiz ve zamanında geldi.",
+        "Bozulma, fire, raf ömrü, depo kapasitesi ve minimum sipariş kısıtı modellenmedi.",
+        "Kayıt bulunmayan günlerde satış sıfır kabul edildi.",
+        "Karşılanamayan miktar kaybedildi (sonraya ertelenmedi); kayıp satış veya kâr iddiası değildir.",
+        "Alış maliyeti olmadığından maliyet veya kârlılık hesaplanmadı."
+      ],
+      "methods": {
+        "seasonal_naive": {
+          "unmet_observed_sales": 1008.0,
+          "observed_sales": 62552.0,
+          "fill_rate": 0.9839,
+          "avg_on_hand": 1080.4701,
+          "n_orders": 830,
+          "ordered_quantity": 59860.0
+        },
+        "xgboost": {
+          "unmet_observed_sales": 1015.0,
+          "observed_sales": 62552.0,
+          "fill_rate": 0.9838,
+          "avg_on_hand": 944.3473,
+          "n_orders": 853,
+          "ordered_quantity": 59831.0
+        },
+        "combined": {
+          "unmet_observed_sales": 1017.0,
+          "observed_sales": 62552.0,
+          "fill_rate": 0.9837,
+          "avg_on_hand": 944.1437,
+          "n_orders": 852,
+          "ordered_quantity": 59828.0
+        }
+      }
+    },
+    "note": "Göreli iyileşme yalnızca ölçüm olarak raporlanır; başarı iddiası değildir."
+  },
+  "quality": {
+    "source": "urun_gun.csv.gz",
+    "rows": 18000,
+    "hesap_rows": 989,
+    "hesap_amount": 432416.46,
+    "negative_rows": 75,
+    "negative_amount": -4444.0,
+    "duplicate_rows": 0,
+    "duplicates_dropped": false,
+    "invalid_rows": 0,
+    "no_barcode_rows": 0,
+    "zero_quantity_rows": 0,
+    "rows_in_quantity_series": 16936,
+    "date_range": {
+      "start": "2023-11-01",
+      "end": "2026-10-26"
+    },
+    "calendar_days": 1091,
+    "recorded_days": 1072,
+    "missing_days": [
+      "2023-12-31",
+      "2024-01-01",
+      "2024-04-10",
+      "2024-06-16",
+      "2024-07-04",
+      "2024-09-24",
+      "2025-01-01",
+      "2025-03-30",
+      "2025-06-06",
+      "2025-07-21",
+      "2025-09-08",
+      "2025-11-11",
+      "2026-01-01",
+      "2026-02-20",
+      "2026-03-20",
+      "2026-04-25",
+      "2026-05-27",
+      "2026-07-01",
+      "2026-08-18"
+    ],
+    "closed_weekdays": [],
+    "closed_weekdays_names": [],
+    "closed_weekdays_source": "otomatik",
+    "closed_dates": [],
+    "assume_complete": true,
+    "products": 20,
+    "units": {
+      "adet": 19,
+      "kg": 1
+    },
+    "unit_inference": {
+      "0000086931676": {
+        "unit": "adet",
+        "source": "sütun",
+        "fractional_lines": 0
+      },
+      "0000087002947": {
+        "unit": "adet",
+        "source": "sütun",
+        "fractional_lines": 0
+      },
+      "0002707": {
+        "unit": "kg",
+        "source": "sütun",
+        "fractional_lines": 1071
+      },
+      "8691000000000": {
+        "unit": "adet",
+        "source": "sütun",
+        "fractional_lines": 0
+      },
+      "8691000104729": {
+        "unit": "adet",
+        "source": "sütun",
+        "fractional_lines": 0
+      },
+      "8691000209458": {
+        "unit": "adet",
+        "source": "sütun",
+        "fractional_lines": 0
+      },
+      "8691000314187": {
+        "unit": "adet",
+        "source": "sütun",
+        "fractional_lines": 0
+      },
+      "8691000523645": {
+        "unit": "adet",
+        "source": "sütun",
+        "fractional_lines": 0
+      },
+      "8691000628374": {
+        "unit": "adet",
+        "source": "sütun",
+        "fractional_lines": 0
+      },
+      "8691000837832": {
+        "unit": "adet",
+        "source": "sütun",
+        "fractional_lines": 0
+      },
+      "8691000942561": {
+        "unit": "adet",
+        "source": "sütun",
+        "fractional_lines": 0
+      },
+      "8691001047290": {
+        "unit": "adet",
+        "source": "sütun",
+        "fractional_lines": 0
+      },
+      "8691001152019": {
+        "unit": "adet",
+        "source": "sütun",
+        "fractional_lines": 0
+      },
+      "8691001256748": {
+        "unit": "adet",
+        "source": "sütun",
+        "fractional_lines": 0
+      },
+      "8691001466206": {
+        "unit": "adet",
+        "source": "sütun",
+        "fractional_lines": 0
+      },
+      "8691001570935": {
+        "unit": "adet",
+        "source": "sütun",
+        "fractional_lines": 0
+      },
+      "8691001675664": {
+        "unit": "adet",
+        "source": "sütun",
+        "fractional_lines": 0
+      },
+      "8691001780393": {
+        "unit": "adet",
+        "source": "sütun",
+        "fractional_lines": 0
+      },
+      "8691001885122": {
+        "unit": "adet",
+        "source": "sütun",
+        "fractional_lines": 0
+      },
+      "8691001989851": {
+        "unit": "adet",
+        "source": "sütun",
+        "fractional_lines": 0
+      }
+    },
+    "unit_conflicts": [],
+    "name_conflicts": [],
+    "unmatched_barcodes": [],
+    "catalog_checked": false,
+    "columns": {
+      "separator": ";",
+      "tarih": "tarih",
+      "barkod": "barkod",
+      "urun": "urun",
+      "kategori": "kategori",
+      "birim": "birim",
+      "miktar": "miktar",
+      "tutar": "tutar"
+    }
+  },
+  "warnings": [
+    "Tahmin edilen değişken gözlenen satıştır; stok tükenmesi nedeniyle karşılanamayan talep ölçülmemiştir.",
+    "Sonuçlar tek bir işletmenin verisine dayanır; başka işletmelere genellenemez.",
+    "Yıllık ufuk keşifsel; raporlanmadı.",
+    "Değerlendirme sonuçları bir başarı iddiası değildir; yalnızca ölçülen hataları gösterir.",
+    "Ramazan ve Kurban Bayramı tarihleri koda elle girilmiştir; resmî takvimle doğrulanmalıdır.",
+    "Stok önerisi mevcut stoğu bilmez; 'eldeki stok' ve 'önerilen sipariş' uygulamada doldurulmalıdır.",
+    "19 gün için hiç kayıt yok; bu günler sıfır satış sayılmadı (eksik gün).",
+    "989 HESAP satırı (tutar 432416.46) ürün miktar serisine katılmadı.",
+    "75 negatif (iade) satırı miktar serisinden çıkarıldı."
+  ]
+}

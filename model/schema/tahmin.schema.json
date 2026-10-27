@@ -1,0 +1,270 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/eslemyilmaz/dukkan-talep-tahmini/model/schema/tahmin.schema.json",
+  "title": "tahmin.json — dukkan_tahmin çıktı sözleşmesi (sürüm 1)",
+  "description": "Python modelleme katmanının tablet uygulamasına verdiği tahmin, değerlendirme ve stok önerisi dosyası. Sayılar ondalıklıdır; tanımsız değerler null. Tahmin edilen değişken gözlenen satıştır (talep değil). on_hand ve suggested_order uygulama tarafından doldurulur.",
+  "type": "object",
+  "required": ["version", "generated_at", "origin", "data_range", "method", "horizons", "products", "evaluation", "quality", "warnings"],
+  "properties": {
+    "version": {"const": 1},
+    "generated_at": {"type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}([+-]\\d{2}:\\d{2}|Z)$"},
+    "origin": {"$ref": "#/$defs/date", "description": "Son gözlenen gün; tahminler ertesi günden başlar."},
+    "data_range": {
+      "type": "object",
+      "required": ["start", "end", "recorded_days", "missing_days"],
+      "properties": {
+        "start": {"$ref": "#/$defs/date"},
+        "end": {"$ref": "#/$defs/date"},
+        "recorded_days": {"type": "integer", "minimum": 0},
+        "missing_days": {"type": "integer", "minimum": 0, "description": "Kaydı olmayan ve kapalı sayılmayan gün sayısı (sıfır satış sayılmaz)."}
+      }
+    },
+    "method": {
+      "type": "object",
+      "required": ["name", "lambda", "a0", "group_thresholds", "weights", "xgboost_params", "features", "monthly_mode"],
+      "properties": {
+        "name": {"const": "grouped_regularized_combination"},
+        "lambda": {"type": "number", "minimum": 0},
+        "a0": {"$ref": "#/$defs/horizonNumbers", "description": "Ortak referans ağırlığı; iç doğrulamada (λ = 0, tüm ürünler) bir kez hesaplanır ve dış testte ve son tahminde sabit kalır."},
+        "update_rule": {
+          "type": "object",
+          "description": "Hangi parametrenin nerede belirlendiği: a0 ve λ yalnızca iç doğrulamada, grup ağırlıkları her başlangıçta ufku bitmiş sonuçlarla.",
+          "properties": {
+            "a0": {"const": "fixed_internal_validation"},
+            "lambda": {"const": "fixed_internal_validation"},
+            "group_weights": {"const": "refit_each_origin_elapsed_outcomes"}
+          }
+        },
+        "group_thresholds": {
+          "type": "object",
+          "required": ["zero_ratio_intermittent", "cv_split", "min_obs"],
+          "properties": {
+            "zero_ratio_intermittent": {"type": "number", "minimum": 0, "maximum": 1},
+            "cv_split": {"type": "array", "items": {"type": "number", "minimum": 0}, "minItems": 1, "maxItems": 2},
+            "min_obs": {"type": "integer", "minimum": 0}
+          }
+        },
+        "weights": {
+          "type": "object",
+          "required": ["weekly", "monthly"],
+          "properties": {
+            "weekly": {"$ref": "#/$defs/groupWeights"},
+            "monthly": {"$ref": "#/$defs/groupWeights"}
+          }
+        },
+        "xgboost_params": {"type": "object"},
+        "features": {
+          "type": "object",
+          "required": ["lags", "ma_windows"],
+          "properties": {
+            "lags": {"type": "array", "items": {"type": "integer", "minimum": 1}},
+            "ma_windows": {"type": "array", "items": {"type": "integer", "minimum": 1}}
+          }
+        },
+        "monthly_mode": {"enum": ["calendar", "30d"]},
+        "scale": {"enum": ["product_mean", "none"]}
+      }
+    },
+    "horizons": {
+      "type": "object",
+      "required": ["weekly", "monthly"],
+      "properties": {
+        "weekly": {"$ref": "#/$defs/horizonSpan"},
+        "monthly": {"$ref": "#/$defs/horizonSpan"}
+      }
+    },
+    "products": {"type": "array", "items": {"$ref": "#/$defs/product"}},
+    "evaluation": {
+      "type": "object",
+      "required": ["origins", "pilot_products", "summary", "relative_improvement_vs_xgboost_pct", "per_origin"],
+      "properties": {
+        "origins": {"type": "array", "items": {"$ref": "#/$defs/date"}},
+        "internal_origins": {"type": "array", "items": {"$ref": "#/$defs/date"}},
+        "pilot_products": {"type": "array", "items": {"type": "string"}},
+        "summary": {
+          "type": "object",
+          "required": ["weekly", "monthly"],
+          "properties": {
+            "weekly": {"$ref": "#/$defs/horizonSummary"},
+            "monthly": {"$ref": "#/$defs/horizonSummary"}
+          }
+        },
+        "relative_improvement_vs_xgboost_pct": {
+          "type": "object",
+          "required": ["weekly", "monthly"],
+          "properties": {
+            "weekly": {"type": ["number", "null"]},
+            "monthly": {"type": ["number", "null"]}
+          }
+        },
+        "per_origin": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["origin", "weekly", "monthly"],
+            "properties": {
+              "origin": {"$ref": "#/$defs/date"},
+              "weekly": {"$ref": "#/$defs/originHorizon"},
+              "monthly": {"$ref": "#/$defs/originHorizon"},
+              "version": {"type": "object"}
+            }
+          }
+        },
+        "stock_simulation": {"type": ["object", "null"]}
+      }
+    },
+    "quality": {
+      "type": "object",
+      "required": ["rows", "hesap_rows", "hesap_amount", "negative_rows", "duplicate_rows", "invalid_rows", "missing_days", "closed_weekdays", "columns"],
+      "properties": {
+        "rows": {"type": "integer", "minimum": 0},
+        "hesap_rows": {"type": "integer", "minimum": 0},
+        "hesap_amount": {"type": "number"},
+        "negative_rows": {"type": "integer", "minimum": 0},
+        "duplicate_rows": {"type": "integer", "minimum": 0},
+        "invalid_rows": {"type": "integer", "minimum": 0},
+        "missing_days": {"type": "array", "items": {"$ref": "#/$defs/date"}},
+        "closed_weekdays": {"type": "array", "items": {"type": "integer", "minimum": 0, "maximum": 6}, "description": "0=Pazartesi … 6=Pazar"},
+        "columns": {"type": "object"}
+      }
+    },
+    "warnings": {"type": "array", "items": {"type": "string"}}
+  },
+  "$defs": {
+    "date": {"type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$"},
+    "num": {"type": ["number", "null"]},
+    "horizonNumbers": {
+      "type": "object",
+      "required": ["weekly", "monthly"],
+      "properties": {
+        "weekly": {"type": "number", "minimum": 0, "maximum": 1},
+        "monthly": {"type": "number", "minimum": 0, "maximum": 1}
+      }
+    },
+    "groupWeights": {
+      "type": "object",
+      "required": ["steady", "variable", "intermittent", "sparse"],
+      "additionalProperties": {"type": "number", "minimum": 0, "maximum": 1}
+    },
+    "horizonSpan": {
+      "type": "object",
+      "required": ["days", "start", "end"],
+      "properties": {
+        "days": {"type": "integer", "minimum": 1},
+        "start": {"$ref": "#/$defs/date"},
+        "end": {"$ref": "#/$defs/date"}
+      }
+    },
+    "methodNumbers": {
+      "type": "object",
+      "required": ["combined", "xgboost", "seasonal_naive"],
+      "additionalProperties": {"$ref": "#/$defs/num"}
+    },
+    "horizonSummary": {
+      "type": "object",
+      "required": ["wape_pilot", "mae_mean", "spread"],
+      "properties": {
+        "wape_pilot": {"$ref": "#/$defs/methodNumbers"},
+        "mae_mean": {"$ref": "#/$defs/methodNumbers"},
+        "spread": {
+          "type": "object",
+          "required": ["combined", "xgboost", "seasonal_naive"],
+          "additionalProperties": {
+            "type": "object",
+            "required": ["min", "max", "std"],
+            "properties": {"min": {"$ref": "#/$defs/num"}, "max": {"$ref": "#/$defs/num"}, "std": {"$ref": "#/$defs/num"}}
+          }
+        }
+      }
+    },
+    "originHorizon": {
+      "type": "object",
+      "required": ["start", "end", "wape_pilot"],
+      "properties": {
+        "start": {"$ref": "#/$defs/date"},
+        "end": {"$ref": "#/$defs/date"},
+        "wape_pilot": {"$ref": "#/$defs/methodNumbers"}
+      }
+    },
+    "forecastHorizon": {
+      "type": "object",
+      "required": ["combined", "xgboost", "seasonal_naive", "weight"],
+      "properties": {
+        "combined": {"type": "number", "minimum": 0},
+        "xgboost": {"type": "number", "minimum": 0},
+        "seasonal_naive": {"type": "number", "minimum": 0},
+        "weight": {"type": "number", "minimum": 0, "maximum": 1},
+        "daily": {"type": "array", "items": {"type": "number", "minimum": 0}, "minItems": 7, "maxItems": 7}
+      }
+    },
+    "backtestHorizon": {
+      "type": "object",
+      "required": ["mae", "wape"],
+      "properties": {
+        "mae": {"$ref": "#/$defs/methodNumbers"},
+        "wape": {"$ref": "#/$defs/methodNumbers"},
+        "n_origins": {"type": "integer", "minimum": 0}
+      }
+    },
+    "product": {
+      "type": "object",
+      "required": ["barcode", "name", "category", "unit", "group", "history", "forecast", "backtest", "stock", "flags"],
+      "properties": {
+        "barcode": {"type": "string", "description": "Metin; baştaki sıfırlar korunur."},
+        "name": {"type": "string"},
+        "category": {"type": "string"},
+        "unit": {"enum": ["adet", "kg"]},
+        "group": {"enum": ["steady", "variable", "erratic", "intermittent", "sparse"]},
+        "history": {
+          "type": "object",
+          "required": ["observations", "last_sale", "mean_daily_90d"],
+          "properties": {
+            "observations": {"type": "integer", "minimum": 0},
+            "last_sale": {"anyOf": [{"$ref": "#/$defs/date"}, {"type": "null"}]},
+            "mean_daily_90d": {"$ref": "#/$defs/num"}
+          }
+        },
+        "forecast": {
+          "type": "object",
+          "required": ["weekly", "monthly"],
+          "properties": {
+            "weekly": {"$ref": "#/$defs/forecastHorizon", "required": ["daily"]},
+            "monthly": {"$ref": "#/$defs/forecastHorizon"}
+          }
+        },
+        "backtest": {
+          "anyOf": [
+            {"type": "null"},
+            {
+              "type": "object",
+              "required": ["weekly", "monthly"],
+              "properties": {
+                "weekly": {"$ref": "#/$defs/backtestHorizon"},
+                "monthly": {"$ref": "#/$defs/backtestHorizon"}
+              }
+            }
+          ]
+        },
+        "stock": {
+          "type": "object",
+          "required": ["lead_time_days", "review_days", "demand_over_lead_and_review", "safety_stock", "order_up_to", "pack_size", "service_level", "on_hand", "suggested_order"],
+          "properties": {
+            "lead_time_days": {"type": "integer", "minimum": 0},
+            "review_days": {"type": "integer", "minimum": 0},
+            "demand_over_lead_and_review": {"type": "number", "minimum": 0},
+            "safety_stock": {"type": "number", "minimum": 0, "description": "Emniyet stoku: L+R penceresindeki yalnızca eksik tahmin hatalarının (gerçekleşen − tahmin > 0) hizmet düzeyi yüzdeliği; pozitif hata yoksa 0."},
+            "order_up_to": {"type": "number", "minimum": 0, "description": "Denklem 6 sipariş üst sınırı S = D(L+R) + SS; paket katına YUVARLANMAMIŞTIR. Uygulama siparişi ⌈max(0, S − IP)⌉ paket olarak yalnızca bir kez yuvarlar."},
+            "pack_size": {"type": "number", "minimum": 0, "description": "Paket büyüklüğü (ürünün biriminde); yalnızca son sipariş miktarının yuvarlanmasında kullanılır."},
+            "service_level": {"type": "number", "minimum": 0, "maximum": 1},
+            "on_hand": {"type": ["number", "null"]},
+            "suggested_order": {"type": ["number", "null"]}
+          }
+        },
+        "flags": {
+          "type": "array",
+          "items": {"enum": ["new_product", "fallback_a0", "inactive", "ss_pooled", "not_in_backtest"]}
+        }
+      }
+    }
+  }
+}
