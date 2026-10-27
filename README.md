@@ -68,7 +68,7 @@ Model tablette çalışmaz; bilgisayardaki Python paketi (`model/`, ayrıntılar
 
 1. **Ürün-gün CSV'si hazırlayın.** Kasa kayıtları için Raporlar → "Satış kayıtlarını modele aktar" → "Ürün-gün CSV indir" (yalnızca satışlar; işletme içi kullanım ve tahsilatlar hariç). Market programının ham raporu için `python -m dukkan_tahmin donustur --girdi rapor.zip --cikti urun_gun.csv`.
 2. **Tahmini üretin** (`model/` klasöründe): `python -m dukkan_tahmin tahmin --girdi urun_gun.csv --cikti tahmin.json`
-3. **Dosyayı Tahminler sayfasından yükleyin.** Ürünler barkodla eşleşir; önerilen sipariş, hedef stok seviyesi ile **bu cihazdaki** mevcut stok farkından paket boyutuna yuvarlanarak hesaplanır.
+3. **Dosyayı Tahminler sayfasından yükleyin.** Ürünler barkodla eşleşir; önerilen sipariş, hedef stok seviyesi (dönem ihtiyacı + emniyet stoku) ile **bu cihazdaki** mevcut stok farkından, yalnızca bir kez paket boyutuna yukarı yuvarlanarak hesaplanır.
 
 Yerel ağda çalışan bir API bu sürümde yoktur; dosyalar elle taşınır. Gösterilen hata ölçüleri geriye dönük testtir, gelecekteki doğruluk için garanti değildir.
 

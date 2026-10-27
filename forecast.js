@@ -11,7 +11,7 @@ const forecastSources = [
     id: "model",
     label: "Model çıktısı (tahmin.json)",
     available: () => Boolean(tahmin),
-    render: () => tahminView(),
+    render: () => safeTahminView(),
     afterRender: () => {},
   },
   {
@@ -119,6 +119,11 @@ restoreTahmin().then((ok) => {
 const isObj = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
 const isNum = (v) => typeof v === "number" && Number.isFinite(v);
 const isDate = (v) => typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v);
+const isText = (v, max) => typeof v === "string" && v.length <= max;
+const isList = (v, ok) => Array.isArray(v) && v.every(ok);
+const absent = (v) => v === undefined || v === null;
+// Every string this page puts on screen is checked here (dates as YYYY-AA-GG, the rest as length-capped
+// text) and escaped when rendered.
 function tahminProblem(d) {
   if (!isObj(d)) return "Dosya bir JSON nesnesi değil.";
   if (d.version !== 1)
@@ -130,6 +135,12 @@ function tahminProblem(d) {
     () => need(isDate(d.data_range.start), "data_range.start", "tarih"),
     () => need(isDate(d.data_range.end), "data_range.end", "tarih"),
     () => need(isObj(d.method), "method", "nesne"),
+    () =>
+      need(
+        absent(d.method.name) || isText(d.method.name, 100),
+        "method.name",
+        "en fazla 100 karakterlik metin",
+      ),
     () => need(isNum(d.method.lambda), "method.lambda", "sayı"),
     () => need(isObj(d.method.a0), "method.a0", "nesne"),
     () => need(isObj(d.method.weights), "method.weights", "nesne"),
@@ -140,6 +151,12 @@ function tahminProblem(d) {
       () => need(isDate(d.horizons[h].end), `horizons.${h}.end`, "tarih"),
       () => need(isNum(d.method.a0[h]), `method.a0.${h}`, "sayı"),
       () => need(isObj(d.method.weights[h]), `method.weights.${h}`, "nesne"),
+      () =>
+        need(
+          Object.keys(d.method.weights[h]).every((g) => g.length <= 40),
+          `method.weights.${h}`,
+          "en fazla 40 karakterlik grup adlarıyla nesne",
+        ),
     ]),
     () => need(isObj(d.evaluation), "evaluation", "nesne"),
     () => need(isObj(d.evaluation.summary), "evaluation.summary", "nesne"),
@@ -147,7 +164,51 @@ function tahminProblem(d) {
       (h) => () =>
         need(isObj(d.evaluation.summary[h]?.wape_pilot), `evaluation.summary.${h}.wape_pilot`, "nesne"),
     ),
-    () => need(d.warnings === undefined || Array.isArray(d.warnings), "warnings", "liste"),
+    ...["weekly", "monthly"].flatMap((h) => {
+      let path = `evaluation.summary.${h}.bootstrap_ci_wape_diff`,
+        cis = () => d.evaluation.summary[h].bootstrap_ci_wape_diff;
+      return [
+        () => need(absent(cis()) || isObj(cis()), path, "nesne"),
+        ...["combined_minus_xgboost", "combined_minus_seasonal_naive"].map((k) => () => {
+          let ci = cis()?.[k];
+          return need(
+            absent(ci) ||
+              (isObj(ci) &&
+                isNum(ci.lo) &&
+                isNum(ci.hi) &&
+                ci.lo <= ci.hi &&
+                (absent(ci.level) || (isNum(ci.level) && ci.level > 0 && ci.level < 1))),
+            `${path}.${k}`,
+            "lo ≤ hi sayılarıyla aralık",
+          );
+        }),
+      ];
+    }),
+    () =>
+      need(
+        d.evaluation.origins === undefined || isList(d.evaluation.origins, isDate),
+        "evaluation.origins",
+        "YYYY-AA-GG tarihlerinden oluşan liste",
+      ),
+    () =>
+      need(
+        d.evaluation.per_origin === undefined ||
+          isList(d.evaluation.per_origin, (o) => isObj(o) && isDate(o.origin)),
+        "evaluation.per_origin",
+        "her kaydında YYYY-AA-GG tarihli origin bulunan liste",
+      ),
+    () =>
+      need(
+        d.evaluation.pilot_products === undefined || Array.isArray(d.evaluation.pilot_products),
+        "evaluation.pilot_products",
+        "liste",
+      ),
+    () =>
+      need(
+        d.warnings === undefined || isList(d.warnings, (w) => isText(w, 1000)),
+        "warnings",
+        "en fazla 1000 karakterlik metinlerden oluşan liste",
+      ),
     () => need(Array.isArray(d.products), "products", "liste"),
   ];
   for (let check of checks) {
@@ -159,9 +220,25 @@ function tahminProblem(d) {
     let at = `products[${i}]`,
       problem =
         need(isObj(p), at, "nesne") ||
-        need(typeof p.barcode === "string" && p.barcode.trim() !== "", at + ".barcode", "metin") ||
-        need(typeof p.name === "string", at + ".name", "metin") ||
-        need(typeof p.unit === "string", at + ".unit", "metin") ||
+        need(
+          isText(p.barcode, 100) && p.barcode.trim() !== "",
+          at + ".barcode",
+          "en fazla 100 karakterlik metin",
+        ) ||
+        need(isText(p.name, 200), at + ".name", "en fazla 200 karakterlik metin") ||
+        need(isText(p.unit, 20), at + ".unit", "en fazla 20 karakterlik metin") ||
+        need(
+          absent(p.category) || isText(p.category, 200),
+          at + ".category",
+          "en fazla 200 karakterlik metin",
+        ) ||
+        need(absent(p.group) || isText(p.group, 40), at + ".group", "en fazla 40 karakterlik metin") ||
+        need(
+          absent(p.history) ||
+            (isObj(p.history) && (absent(p.history.last_sale) || isDate(p.history.last_sale))),
+          at + ".history.last_sale",
+          "YYYY-AA-GG biçiminde tarih",
+        ) ||
         need(isObj(p.forecast), at + ".forecast", "nesne") ||
         need(isNum(p.forecast.weekly?.combined), at + ".forecast.weekly.combined", "sayı") ||
         need(isNum(p.forecast.monthly?.combined), at + ".forecast.monthly.combined", "sayı") ||
@@ -172,7 +249,14 @@ function tahminProblem(d) {
           "sıfır veya pozitif sayı",
         ) ||
         need(p.stock.pack_size == null || isNum(p.stock.pack_size), at + ".stock.pack_size", "sayı") ||
-        need(p.flags === undefined || Array.isArray(p.flags), at + ".flags", "liste");
+        ["demand_over_lead_and_review", "safety_stock"]
+          .map((k) => need(absent(p.stock[k]) || isNum(p.stock[k]), `${at}.stock.${k}`, "sayı"))
+          .find(Boolean) ||
+        need(
+          p.flags === undefined || isList(p.flags, (f) => isText(f, 40)),
+          at + ".flags",
+          "en fazla 40 karakterlik metinlerden oluşan liste",
+        );
     if (problem) return problem;
     if (seen.has(p.barcode)) return `"${at}.barcode" yineleniyor: ${p.barcode}.`;
     seen.add(p.barcode);
@@ -229,9 +313,17 @@ async function removeTahmin() {
 const round3 = (n) => Math.round(n * 1000) / 1000;
 // Order-up-to rule (Eq. 6): ceil_pack(max(0, S − IP)). IP here is the stock on this device only; goods on
 // order and reserved stock are not tracked by the app.
+// One rounding only, on the final order. The model's order_up_to is already rounded up to the pack
+// (model/dukkan_tahmin/stock.py order_up_to_level), so rounding (order_up_to − IP) again could add up to two
+// packs over the need. S is therefore the unrounded D(L+R) + SS when the file carries both, and
+// order_up_to (rounded once, by the model) only when it does not.
 function suggestedOrder(stock, onHand) {
   let pack = isNum(stock.pack_size) && stock.pack_size > 0 ? stock.pack_size : 1,
-    need = Math.max(0, stock.order_up_to - onHand);
+    raw = isNum(stock.demand_over_lead_and_review) && isNum(stock.safety_stock),
+    target = raw
+      ? Math.max(0, stock.demand_over_lead_and_review) + Math.max(0, stock.safety_stock)
+      : stock.order_up_to,
+    need = Math.max(0, target - onHand);
   return round3(Math.max(0, Math.ceil(need / pack - 1e-9)) * pack);
 }
 // Matched by barcode text (leading zeros kept). Read at render time: the product list may be replaced.
@@ -291,13 +383,29 @@ const flagNames = {
   not_in_backtest: ["Testte yok", "Ürün geriye dönük dış testte yoktu; ürün bazında hata ölçümü yok."],
 };
 const methodNames = { grouped_regularized_combination: "Grup ağırlıklı, düzenlileştirilmiş birleşim" };
-const span = (h) => `${ds(h.start)}–${ds(h.end)}${isNum(h.days) ? ` · ${h.days} gün` : ""}`;
-// (WAPE_other − WAPE_combined) / WAPE_other: positive means the combination made less error.
-function relative(combined, other) {
+const fmtSigned = (n) =>
+  new Intl.NumberFormat("tr-TR", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+    signDisplay: "exceptZero",
+  }).format(n);
+// Dates from the file, ready for innerHTML.
+const dsh = (d) => esc(ds(String(d)));
+const span = (h) => `${dsh(h.start)}–${dsh(h.end)}${isNum(h.days) ? ` · ${fmt(h.days)} gün` : ""}`;
+// (WAPE_other − WAPE_combined) / WAPE_other: positive means the combination made less error. ci is the
+// file's block-bootstrap interval for WAPE_combined − WAPE_other (evaluation.summary.<h>.bootstrap_ci_wape_diff,
+// in WAPE points). When it contains 0 the direction of the difference is not established, so no
+// "daha az / daha fazla hata" wording is shown.
+function relative(combined, other, ci, otherName) {
   if (!isNum(combined) || !isNum(other) || other === 0) return "—";
-  let r = ((other - combined) / other) * 100;
-  if (Math.abs(r) < 0.005) return "fark yok";
-  return `%${fmt2(Math.abs(r))} ${r > 0 ? "daha az hata" : "daha fazla hata"}`;
+  let r = ((other - combined) / other) * 100,
+    band = isObj(ci)
+      ? `<small class="ciBand">${isNum(ci.level) ? "%" + fmt1(ci.level * 100) + " " : ""}aralık (birleşim − ${otherName}): ${fmtSigned(ci.lo)} … ${fmtSigned(ci.hi)} WAPE puanı</small>`
+      : "";
+  if (isObj(ci) && ci.lo <= 0 && ci.hi >= 0)
+    return `fark belirsizlik aralığı içinde; üstünlük iddia edilemez<small class="ciBand">göreli fark %${fmt2(Math.abs(r))}</small>${band}`;
+  if (Math.abs(r) < 0.005) return "fark yok" + band;
+  return `%${fmt2(Math.abs(r))} ${r > 0 ? "daha az hata" : "daha fazla hata"}${band}`;
 }
 
 function tahminFileControls() {
@@ -312,6 +420,7 @@ function tahminHeader(d) {
   let s = d.evaluation.summary,
     w = s.weekly.wape_pilot,
     m = s.monthly.wape_pilot,
+    ci = { weekly: s.weekly.bootstrap_ci_wape_diff, monthly: s.monthly.bootstrap_ci_wape_diff },
     groups = [
       ...new Set([...Object.keys(d.method.weights.weekly), ...Object.keys(d.method.weights.monthly)]),
     ],
@@ -320,10 +429,10 @@ function tahminHeader(d) {
     range = d.data_range,
     fact = (k, v) => `<div><span class="muted">${k}</span><strong>${v}</strong></div>`;
   let facts = [
-    fact("Son gözlenen gün", ds(d.origin)),
+    fact("Son gözlenen gün", dsh(d.origin)),
     fact(
       "Veri aralığı",
-      `${ds(range.start)}–${ds(range.end)}${isNum(range.recorded_days) ? ` · ${fmt(range.recorded_days)} kayıtlı gün` : ""}${isNum(range.missing_days) ? ` · ${fmt(range.missing_days)} eksik gün` : ""}`,
+      `${dsh(range.start)}–${dsh(range.end)}${isNum(range.recorded_days) ? ` · ${fmt(range.recorded_days)} kayıtlı gün` : ""}${isNum(range.missing_days) ? ` · ${fmt(range.missing_days)} eksik gün` : ""}`,
     ),
     fact("Haftalık ufuk", span(d.horizons.weekly)),
     fact("Aylık ufuk", span(d.horizons.monthly)),
@@ -332,10 +441,10 @@ function tahminHeader(d) {
     fact("a₀ (ortak ağırlık)", `haftalık ${fmt2(d.method.a0.weekly)} · aylık ${fmt2(d.method.a0.monthly)}`),
   ].join("");
   let weights = `<table class="miniTable"><thead><tr><th>Grup</th><th>Haftalık</th><th>Aylık</th></tr></thead><tbody>${groups.map((g) => `<tr><td title="${esc(groupHelp[g] || "")}">${esc(groupNames[g] || g)}</td><td>${fmt2(d.method.weights.weekly[g])}</td><td>${fmt2(d.method.weights.monthly[g])}</td></tr>`).join("")}</tbody></table>`;
-  let wape = `<table class="miniTable" id="tahminWape"><thead><tr><th>Yöntem</th><th>Haftalık WAPE</th><th>Aylık WAPE</th></tr></thead><tbody><tr><td>Önerilen birleşim</td><td>${pct(w.combined)}</td><td>${pct(m.combined)}</td></tr><tr><td>XGBoost</td><td>${pct(w.xgboost)}</td><td>${pct(m.xgboost)}</td></tr><tr><td>Mevsimsel saf</td><td>${pct(w.seasonal_naive)}</td><td>${pct(m.seasonal_naive)}</td></tr><tr class="relRow"><td>Birleşim, XGBoost'a göre</td><td>${relative(w.combined, w.xgboost)}</td><td>${relative(m.combined, m.xgboost)}</td></tr><tr class="relRow"><td>Birleşim, mevsimsel safa göre</td><td>${relative(w.combined, w.seasonal_naive)}</td><td>${relative(m.combined, m.seasonal_naive)}</td></tr></tbody></table>`;
-  let warnings = (d.warnings || []).filter((x) => typeof x === "string");
+  let wape = `<table class="miniTable" id="tahminWape"><thead><tr><th>Yöntem</th><th>Haftalık WAPE</th><th>Aylık WAPE</th></tr></thead><tbody><tr><td>Önerilen birleşim</td><td>${pct(w.combined)}</td><td>${pct(m.combined)}</td></tr><tr><td>XGBoost</td><td>${pct(w.xgboost)}</td><td>${pct(m.xgboost)}</td></tr><tr><td>Mevsimsel saf</td><td>${pct(w.seasonal_naive)}</td><td>${pct(m.seasonal_naive)}</td></tr><tr class="relRow"><td>Birleşim, XGBoost'a göre</td><td>${relative(w.combined, w.xgboost, ci.weekly?.combined_minus_xgboost, "XGBoost")}</td><td>${relative(m.combined, m.xgboost, ci.monthly?.combined_minus_xgboost, "XGBoost")}</td></tr><tr class="relRow"><td>Birleşim, mevsimsel safa göre</td><td>${relative(w.combined, w.seasonal_naive, ci.weekly?.combined_minus_seasonal_naive, "mevsimsel saf")}</td><td>${relative(m.combined, m.seasonal_naive, ci.monthly?.combined_minus_seasonal_naive, "mevsimsel saf")}</td></tr></tbody></table>`;
+  let warnings = d.warnings || [];
   let stale = d.horizons.weekly.end < todayTR();
-  return `<section class="card panel tahminHead" id="tahminHead"><div class="paneltop"><h2>Model ve geriye dönük test</h2><span class="agentBadge">${esc(tahmin.file)}</span></div>${stale ? `<div class="note">Haftalık ufuk (${span(d.horizons.weekly)}) geride kaldı. Güncel satışlarla yeni bir tahmin dosyası üretin.</div>` : ""}<div class="tahminFacts">${facts}</div><div class="twocol tahminTables"><div><h3>Grup ağırlıkları</h3><p class="muted">XGBoost tahmininin payı (a); kalan pay mevsimsel saf tahmindir.</p><div class="tablewrap">${weights}</div></div><div><h3>Pilot ürünlerde hata (WAPE)</h3><p class="muted">${pilots === null ? "" : `${pilots} pilot ürün · `}${origins.length ? `${origins.length} dış test başlangıcı (${ds(origins[0])}–${ds(origins.at(-1))})` : "dış test başlangıcı belirtilmemiş"} · düşük olması daha iyi</p><div class="tablewrap">${wape}</div></div></div><div class="note honesty">Bu değerler geriye dönük test ölçümüdür; gelecekteki başarıyı garanti etmez. Tahmin edilen değişken gözlenen satıştır, talep değildir.</div>${warnings.length ? `<details class="tahminWarnings" open><summary>Dosyadaki uyarılar (${warnings.length})</summary><ul>${warnings.map((x) => `<li>${esc(x)}</li>`).join("")}</ul></details>` : ""}</section>`;
+  return `<section class="card panel tahminHead" id="tahminHead"><div class="paneltop"><h2>Model ve geriye dönük test</h2><span class="agentBadge">${esc(tahmin.file)}</span></div>${stale ? `<div class="note">Haftalık ufuk (${span(d.horizons.weekly)}) geride kaldı. Güncel satışlarla yeni bir tahmin dosyası üretin.</div>` : ""}<div class="tahminFacts">${facts}</div><div class="twocol tahminTables"><div><h3>Grup ağırlıkları</h3><p class="muted">XGBoost tahmininin payı (a); kalan pay mevsimsel saf tahmindir.</p><div class="tablewrap">${weights}</div></div><div><h3>Pilot ürünlerde hata (WAPE)</h3><p class="muted">${pilots === null ? "" : `${pilots} pilot ürün · `}${origins.length ? `${origins.length} dış test başlangıcı (${dsh(origins[0])}–${dsh(origins.at(-1))})` : "dış test başlangıcı belirtilmemiş"} · düşük olması daha iyi</p><div class="tablewrap">${wape}</div></div></div><div class="note honesty">Bu değerler geriye dönük test ölçümüdür; gelecekteki başarıyı garanti etmez. Tahmin edilen değişken gözlenen satıştır, talep değildir.</div>${warnings.length ? `<details class="tahminWarnings" open><summary>Dosyadaki uyarılar (${warnings.length})</summary><ul>${warnings.map((x) => `<li>${esc(x)}</li>`).join("")}</ul></details>` : ""}</section>`;
 }
 
 function forecastCell(h, unit) {
@@ -349,6 +458,13 @@ function flagPills(flags) {
       return `<span class="pill flag" title="${esc(help)}">${esc(name)}</span>`;
     })
     .join(" ");
+}
+// Display only: the app keeps stock as a whole-number count, so a model unit other than "adet" (e.g. kg)
+// for a matched product may mix two units in the suggestion. Nothing is converted.
+function unitMismatch(f, p) {
+  if (f.unit === "adet" || !Number.isInteger(p.stock)) return "";
+  let help = `Model bu ürünü "${f.unit}" biriminde tahmin ediyor; uygulamadaki stok tam sayı (adet) olarak tutuluyor. Mevcut stok ve önerilen sipariş iki farklı birimi karıştırıyor olabilir; stok miktarını ${f.unit} cinsinden kontrol edin.`;
+  return ` <span class="pill unitWarn" title="${esc(help)}">birim farkı</span>`;
 }
 function setTahminSort(v) {
   tahminSort = v;
@@ -371,15 +487,15 @@ function tahminView() {
   let body = rows
     .map(({ f, p, order }) => {
       let unit = f.unit || "";
-      return `<tr data-barcode="${esc(f.barcode)}"><td><div class="tahminName"><strong>${esc(f.name)}</strong><small>${esc(f.category || "")}${f.category ? " · " : ""}${esc(f.barcode)}<span class="narrowOnly"> · ${esc(groupNames[f.group] || f.group || "")}</span></small></div></td><td class="optCol">${esc(unit)}</td><td class="optCol" title="${esc(groupHelp[f.group] || "")}">${esc(groupNames[f.group] || f.group || "—")}</td><td>${forecastCell(f.forecast.weekly, unit)}</td><td>${forecastCell(f.forecast.monthly, unit)}</td><td>${p ? `${fmt(p.stock)} ${esc(unit)}` : "—"}</td><td>${fmt(f.stock.order_up_to)} ${esc(unit)}</td><td class="orderCell">${p ? `<span class="pill ${order > 0 ? "" : "ok"}">${fmt(order)} ${esc(unit)}</span>` : `<button class="link" data-barcode="${esc(f.barcode)}" onclick="addProduct(this.dataset.barcode)">Ürün olarak ekle</button>`}</td>${anyFlags ? `<td>${flagPills(f.flags)}</td>` : ""}</tr>`;
+      return `<tr data-barcode="${esc(f.barcode)}"><td><div class="tahminName"><strong>${esc(f.name)}</strong><small>${esc(f.category || "")}${f.category ? " · " : ""}${esc(f.barcode)}<span class="narrowOnly"> · ${esc(groupNames[f.group] || f.group || "")}</span></small></div></td><td class="optCol">${esc(unit)}</td><td class="optCol" title="${esc(groupHelp[f.group] || "")}">${esc(groupNames[f.group] || f.group || "—")}</td><td>${forecastCell(f.forecast.weekly, unit)}</td><td>${forecastCell(f.forecast.monthly, unit)}</td><td>${p ? `${fmt(p.stock)} ${esc(unit)}${unitMismatch(f, p)}` : "—"}</td><td>${fmt(f.stock.order_up_to)} ${esc(unit)}</td><td class="orderCell">${p ? `<span class="pill ${order > 0 ? "" : "ok"}">${fmt(order)} ${esc(unit)}</span>` : `<button class="link" data-barcode="${esc(f.barcode)}" onclick="addProduct(this.dataset.barcode)">Ürün olarak ekle</button>`}</td>${anyFlags ? `<td>${flagPills(f.flags)}</td>` : ""}</tr>`;
     })
     .join("");
-  let table = `<section class="card panel bottom"><div class="paneltop"><div><h2>Sipariş önerisi</h2><p class="muted">Önerilen sipariş = hedef stok − mevcut stok, sıfırın altına inmez, paket boyuna yukarı yuvarlanır. Mevcut stok bu cihazdaki kayıttır; yoldaki sipariş ve ayrılmış stok hesaba katılmaz.</p></div><select id="tahminSort" aria-label="Sıralama" onchange="setTahminSort(this.value)"><option value="order" ${tahminSort === "order" ? "selected" : ""}>Siparişe göre</option><option value="name" ${tahminSort === "name" ? "selected" : ""}>Ada göre</option></select></div><div class="tablewrap" tabindex="0" aria-label="Model tahmini ve sipariş önerisi tablosu"><table id="tahminTable"><thead><tr><th>Ürün</th><th class="optCol">Birim</th><th class="optCol">Grup</th><th>Haftalık tahmin</th><th>Aylık tahmin</th><th>Mevcut stok</th><th>Hedef stok</th><th>Önerilen sipariş</th>${anyFlags ? "<th>İşaretler</th>" : ""}</tr></thead><tbody>${body}</tbody></table></div><p class="muted" style="margin-top:14px">Tahmine dokunarak XGBoost ve mevsimsel saf tahmini ile birleşimdeki XGBoost payını görebilirsiniz. Haftalık: ${span(d.horizons.weekly)}; aylık: ${span(d.horizons.monthly)}. Sipariş kararı sizindir.</p></section>`;
+  let table = `<section class="card panel bottom"><div class="paneltop"><div><h2>Sipariş önerisi</h2><p class="muted">Önerilen sipariş = dönem ihtiyacı + emniyet stoku − mevcut stok; sıfırın altına inmez, yalnızca bir kez paket boyuna yukarı yuvarlanır. Hedef stok, modelin paket boyuna yuvarladığı seviyedir. Mevcut stok bu cihazdaki kayıttır; yoldaki sipariş ve ayrılmış stok hesaba katılmaz.</p></div><select id="tahminSort" aria-label="Sıralama" onchange="setTahminSort(this.value)"><option value="order" ${tahminSort === "order" ? "selected" : ""}>Siparişe göre</option><option value="name" ${tahminSort === "name" ? "selected" : ""}>Ada göre</option></select></div><div class="tablewrap" tabindex="0" aria-label="Model tahmini ve sipariş önerisi tablosu"><table id="tahminTable"><thead><tr><th>Ürün</th><th class="optCol">Birim</th><th class="optCol">Grup</th><th>Haftalık tahmin</th><th>Aylık tahmin</th><th>Mevcut stok</th><th>Hedef stok</th><th>Önerilen sipariş</th>${anyFlags ? "<th>İşaretler</th>" : ""}</tr></thead><tbody>${body}</tbody></table></div><p class="muted" style="margin-top:14px">Tahmine dokunarak XGBoost ve mevsimsel saf tahmini ile birleşimdeki XGBoost payını görebilirsiniz. Haftalık: ${span(d.horizons.weekly)}; aylık: ${span(d.horizons.monthly)}. Sipariş kararı sizindir.</p></section>`;
   let lists = `<div class="twocol bottom"><section class="card panel" id="tahminAppOnly"><h2>Modelde karşılığı yok <span class="muted">· ${appOnly.length}</span></h2><p class="subtitle">Uygulamadaki bu ürünlerin barkodu tahmin dosyasında yok ya da ürüne barkod tanımlanmamış.</p>${appOnly.length ? `<ul class="plainList">${appOnly.map((p) => `<li><strong>${esc(p.name)}</strong> <span class="muted">${p.barcode ? esc(p.barcode) : "barkodsuz · dışa aktarımda app:" + esc(p.id)}</span></li>`).join("")}</ul>` : '<p class="muted">Bütün ürünlerin model tahmini var.</p>'}</section><section class="card panel" id="tahminFileOnly"><h2>Uygulamada tanımlı değil <span class="muted">· ${fileOnly.length}</span></h2><p class="subtitle">Tahmin dosyasındaki bu barkodlar uygulamada kayıtlı değil. Ürün olarak eklerseniz sipariş önerisi hesaplanır.</p>${fileOnly.length ? `<ul class="plainList">${fileOnly.map(({ f }) => `<li><span class="listName"><strong>${esc(f.name)}</strong> <span class="muted">${esc(f.barcode)}</span></span><button class="smallbtn" data-barcode="${esc(f.barcode)}" onclick="addProduct(this.dataset.barcode)">Ürün olarak ekle</button></li>`).join("")}</ul>` : '<p class="muted">Dosyadaki bütün ürünler uygulamada kayıtlı.</p>'}</section></div>`;
   return (
     title(
       "Model tahminleri",
-      `tahmin.json · son gözlenen gün ${ds(d.origin)} · ${d.products.length} ürün`,
+      `tahmin.json · son gözlenen gün ${dsh(d.origin)} · ${d.products.length} ürün`,
       `${tahminFileControls()}<button onclick="removeTahmin()">Tahmin dosyasını kaldır</button>`,
     ) +
     `<p id="tahminResult" role="alert" class="danger"></p>` +
@@ -387,6 +503,24 @@ function tahminView() {
     table +
     lists
   );
+}
+
+// A file that passed tahminProblem() but still breaks the view must not lock the page: the fallback keeps
+// "Tahmin dosyasını kaldır" and "Başka dosya yükle" working.
+function safeTahminView() {
+  try {
+    return tahminView();
+  } catch (e) {
+    console.warn("Tahmin dosyası gösterilemedi:", e);
+    return (
+      title(
+        "Model tahminleri",
+        "Yüklenen tahmin dosyası gösterilemedi.",
+        `${tahminFileControls()}<button onclick="removeTahmin()">Tahmin dosyasını kaldır</button>`,
+      ) +
+      `<p id="tahminResult" role="alert" class="danger"></p><section class="card panel" id="tahminBroken"><h2>Tahmin dosyası okunamadı</h2><p class="subtitle">${esc(tahmin?.file || "tahmin.json")}: ${esc(e?.message || e)}</p><p class="muted">Dosyayı kaldırın veya modelin ürettiği başka bir tahmin.json yükleyin.</p></section>`
+    );
+  }
 }
 
 const forecastPage = {

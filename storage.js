@@ -142,6 +142,13 @@
 
   // ---------- Pure: register records ----------
   const isInt = (n, min) => Number.isSafeInteger(n) && n >= min;
+  // Ids end up in data-* attributes and lookups; a backup is a file from outside, so they are restricted to
+  // what uid() and the app produce (UUIDs, hex, short test ids).
+  const ID = /^[\w.:-]{1,64}$/,
+    ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+  const isId = (v) => typeof v === "string" && ID.test(v);
+  const optNumber = (v) => v === undefined || v === null || Number.isFinite(v);
+  const optString = (v) => v === undefined || v === null || typeof v === "string";
   function checkMeta(m) {
     if (
       m?.version !== 1 ||
@@ -203,18 +210,37 @@
       throw Error("Yedekte kimliği veya adı eksik ürün var.");
     if (meta.customers.some((c) => typeof c?.id !== "string" || !c.id || typeof c.name !== "string"))
       throw Error("Yedekte kimliği veya adı eksik müşteri var.");
+    if (meta.products.some((p) => !isId(p.id)))
+      throw Error(
+        "Yedekte geçersiz ürün kimliği var; dosya bu uygulamadan alınmış bir yedek gibi görünmüyor.",
+      );
+    if (
+      meta.products.some(
+        (p) =>
+          !["stock", "min", "price", "cost", "daily"].every((k) => optNumber(p[k])) ||
+          !["barcode", "category", "icon"].every((k) => optString(p[k])),
+      )
+    )
+      throw Error("Yedekte okunamayan ürün bilgisi var (stok, fiyat, barkod veya kategori).");
+    if (meta.customers.some((c) => !isId(c.id)))
+      throw Error(
+        "Yedekte geçersiz müşteri kimliği var; dosya bu uygulamadan alınmış bir yedek gibi görünmüyor.",
+      );
     let ids = new Set(),
       numbers = new Set();
     for (let e of entries) {
       if (
-        typeof e?.id !== "string" ||
-        !e.id ||
+        !isId(e?.id) ||
         !isInt(e.number, 1) ||
         e.number >= meta.nextNumber ||
-        !/^\d{4}-\d{2}-\d{2}$/.test(e.date) ||
+        !ISO_DATE.test(e.date) ||
         !KINDS.includes(e.kind) ||
         !Array.isArray(e.items) ||
-        !Number.isSafeInteger(e.total)
+        !Number.isSafeInteger(e.total) ||
+        !(e.customerId === undefined || e.customerId === null || isId(e.customerId)) ||
+        !optString(e.time) ||
+        !optString(e.note) ||
+        e.items.some((it) => !isId(it?.id) || typeof it.name !== "string" || !Number.isFinite(it.q))
       )
         throw Error(
           "Yedekte okunamayan bir işlem kaydı var" + (isInt(e?.number, 1) ? " (#" + e.number + ")." : "."),
@@ -226,6 +252,21 @@
     }
     if (b.reportIncluded && (typeof b.report?.days !== "object" || !b.report.days))
       throw Error("Yedekte satış raporu olduğu yazıyor ama rapor okunamadı.");
+    if (b.reportIncluded) {
+      let days = Object.entries(b.report.days),
+        stats = b.report.stats;
+      if (days.some(([day, v]) => !ISO_DATE.test(day) || typeof v !== "object" || !v))
+        throw Error("Yedekteki satış raporunda YYYY-AA-GG biçiminde olmayan bir gün var.");
+      if (
+        stats !== undefined &&
+        (typeof stats !== "object" ||
+          !stats ||
+          ["rows", "hesap", "negative", "invalid", "fractional", "duplicate"].some(
+            (k) => !optNumber(stats[k]),
+          ))
+      )
+        throw Error("Yedekteki satış raporunun özet sayıları okunamadı.");
+    }
     let dates = entries.map((e) => e.date).sort();
     return {
       meta,

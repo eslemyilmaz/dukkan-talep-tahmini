@@ -12,7 +12,7 @@ const barcodeRule = "Barkod 4–64 karakter olmalı; harf, rakam, nokta, tire ve
 const barcodeTaken = "Bu barkod zaten kayıtlı. Stok girişi alanından okutun.";
 
 function stockTable(list, edit = false) {
-  return `<div class="tablewrap" tabindex="0" aria-label="Ürün stok tablosu"><table><thead><tr><th>Ürün</th><th>Mevcut stok</th><th>Alt sınır</th><th>Durum</th><th>İşlem</th></tr></thead><tbody>${list.map((p) => `<tr><td>${productLabel(p)}${orderHintLine(p)}</td><td>${p.stock} adet</td><td>${p.min} adet</td><td><span class="pill ${p.stock >= p.min ? "ok" : ""}">${p.stock >= p.min ? "Yeterli" : "Düşük stok"}</span></td><td><button class="link" onclick="editStock('${esc(p.id)}')">${edit ? "Stok güncelle" : p.stock < p.min ? "Stok ekle →" : "Görüntüle →"}</button></td></tr>`).join("")}</tbody></table></div>`;
+  return `<div class="tablewrap" tabindex="0" aria-label="Ürün stok tablosu"><table><thead><tr><th>Ürün</th><th>Mevcut stok</th><th>Alt sınır</th><th>Durum</th><th>İşlem</th></tr></thead><tbody>${list.map((p) => `<tr><td>${productLabel(p)}${orderHintLine(p)}</td><td>${p.stock} adet</td><td>${p.min} adet</td><td><span class="pill ${p.stock >= p.min ? "ok" : ""}">${p.stock >= p.min ? "Yeterli" : "Düşük stok"}</span></td><td><button class="link" data-id="${esc(p.id)}" onclick="editStock(this.dataset.id)">${edit ? "Stok güncelle" : p.stock < p.min ? "Stok ekle →" : "Görüntüle →"}</button></td></tr>`).join("")}</tbody></table></div>`;
 }
 
 // A loaded tahmin.json (forecast.js) adds a muted suggested-order line under matched products.
@@ -91,7 +91,7 @@ function scanBarcode(e) {
     addProduct(b);
     return;
   }
-  result.innerHTML = `<div class="note">${productMark(p)}<strong>${esc(p.name)}</strong> bulundu · Stok: ${p.stock} adet · Barkod: ${esc(b)}</div><form onsubmit="receiveStock(event,'${esc(p.id)}')" style="display:flex;gap:10px;align-items:end"><label class="field" style="flex:1;margin:0">Gelen miktar<input id="receiveQty" name="qty" type="number" min="1" max="999999" step="1" value="1" required></label><button class="primary">Stoğa ekle</button></form><p class="muted">Yalnızca stok girişi yapar; satış oluşturmaz. Tekrar okutmak onaylanmamış miktarı artırmaz.</p>`;
+  result.innerHTML = `<div class="note">${productMark(p)}<strong>${esc(p.name)}</strong> bulundu · Stok: ${p.stock} adet · Barkod: ${esc(b)}</div><form data-id="${esc(p.id)}" onsubmit="receiveStock(event,this.dataset.id)" style="display:flex;gap:10px;align-items:end"><label class="field" style="flex:1;margin:0">Gelen miktar<input id="receiveQty" name="qty" type="number" min="1" max="999999" step="1" value="1" required></label><button class="primary">Stoğa ekle</button></form><p class="muted">Yalnızca stok girişi yapar; satış oluşturmaz. Tekrar okutmak onaylanmamış miktarı artırmaz.</p>`;
   let qty = document.getElementById("receiveQty");
   qty.focus();
   qty.select();
@@ -201,7 +201,7 @@ function editStock(id) {
   if (!p) return toast("Ürün bulunamadı.");
   modal(
     p.name + " · Stok güncelle",
-    `<form onsubmit="updateStock(event,'${esc(id)}')">${orderHintLine(p, "orderHint modalHint")}<label class="field">Mevcut stok<input name="stock" type="number" min="0" step="1" required value="${p.stock}"></label><label class="field">Alt sınır<input name="min" type="number" min="1" step="1" required value="${p.min}"></label><p id="stockError" role="alert" class="danger"></p><button class="primary">Değişiklikleri kaydet</button></form>`,
+    `<form data-id="${esc(id)}" onsubmit="updateStock(event,this.dataset.id)">${orderHintLine(p, "orderHint modalHint")}<label class="field">Mevcut stok<input name="stock" type="number" min="0" step="1" required value="${p.stock}"></label><label class="field">Alt sınır<input name="min" type="number" min="1" step="1" required value="${p.min}"></label><p id="stockError" role="alert" class="danger"></p><button class="primary">Değişiklikleri kaydet</button></form>`,
   );
 }
 

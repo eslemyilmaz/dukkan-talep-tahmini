@@ -345,7 +345,7 @@ function posScreen() {
           )
           .join(
             "",
-          )}</div>${posPayment === "credit" ? `<label class="field">Müşteri hesabı<select id="posCustomer" onchange="setPosCustomer(this.value)"><option value="">Müşteri seçin</option>${reg.customers.map((c) => `<option value="${esc(c.id)}" ${posCustomer === c.id ? "selected" : ""}>${esc(c.name)} · ${c.id.slice(0, 4)} · ${moneyKurus(customerBalance(c.id))}</option>`).join("")}<option value="new" ${posCustomer === "new" ? "selected" : ""}>+ Yeni müşteri</option></select></label>${posCustomer === "new" ? `<label class="field">Yeni müşteri adı<input maxlength="80" value="${esc(posNewName)}" oninput="posNewName=this.value" placeholder="Ad / hesap adı"></label>` : ""}<p class="muted">Satış tutarı müşteri borcuna eklenir; şu an tahsilat yapılmaz.</p>` : ""}`
+          )}</div>${posPayment === "credit" ? `<label class="field">Müşteri hesabı<select id="posCustomer" onchange="setPosCustomer(this.value)"><option value="">Müşteri seçin</option>${reg.customers.map((c) => `<option value="${esc(c.id)}" ${posCustomer === c.id ? "selected" : ""}>${esc(c.name)} · ${esc(c.id.slice(0, 4))} · ${moneyKurus(customerBalance(c.id))}</option>`).join("")}<option value="new" ${posCustomer === "new" ? "selected" : ""}>+ Yeni müşteri</option></select></label>${posCustomer === "new" ? `<label class="field">Yeni müşteri adı<input maxlength="80" value="${esc(posNewName)}" oninput="posNewName=this.value" placeholder="Ad / hesap adı"></label>` : ""}<p class="muted">Satış tutarı müşteri borcuna eklenir; şu an tahsilat yapılmaz.</p>` : ""}`
       : `<div class="internalWarning">Stok azalır. Satış tutarı ve müşteri borcu oluşmaz.</div><label class="field">Kullanım açıklaması<textarea maxlength="300" aria-label="Kullanım açıklaması" oninput="posNote=this.value" placeholder="Örn. İşletmede tüketildi">${esc(posNote)}</textarea></label><p class="muted">Alış maliyeti bilinen ürünler için tüketim maliyeti ayrıca kaydedilir.</p>`
   }<button class="primary checkout" onclick="completeRegister()" ${!cart.length || posBusy || regProblem ? "disabled" : ""}>${posBusy ? "Kaydediliyor…" : posMode === "sale" ? "✓ Satışı tamamla" : "✓ Kullanımı kaydet"}</button><p class="receiptBodyNote">Stok yalnızca işlem tamamlandığında değişir. Sepeti temizlemek stoğu etkilemez.</p></div></section></div>`;
 }
@@ -363,12 +363,16 @@ function drawQuickProducts() {
   el.innerHTML = list.length
     ? list
         .map((p) => {
-          return `<article class="quickProduct">${productMark(p)}<h3>${esc(p.name)}</h3><div class="tileBottom"><span class="productPrice">${moneyKurus(RegisterCore.cents(p.price || 0))}</span><button class="tileAdd" aria-label="${esc(p.name)} sepete ekle" onclick="addToCart('${esc(p.id)}')" ${p.stock > 0 ? "" : "disabled"}>+</button></div><p class="muted">Stok: ${fmt(p.stock)} adet${p.barcode ? " · " + esc(p.barcode) : ""}</p><button class="tileEdit" onclick="editRegisterProduct('${esc(p.id)}')">Fiyat / barkod / maliyet</button></article>`;
+          return `<article class="quickProduct">${productMark(p)}<h3>${esc(p.name)}</h3><div class="tileBottom"><span class="productPrice">${moneyKurus(RegisterCore.cents(p.price || 0))}</span><button class="tileAdd" aria-label="${esc(p.name)} sepete ekle" data-id="${esc(p.id)}" onclick="addToCart(this.dataset.id)" ${p.stock > 0 ? "" : "disabled"}>+</button></div><p class="muted">Stok: ${fmt(p.stock)} adet${p.barcode ? " · " + esc(p.barcode) : ""}</p><button class="tileEdit" data-id="${esc(p.id)}" onclick="editRegisterProduct(this.dataset.id)">Fiyat / barkod / maliyet</button></article>`;
         })
         .join("")
     : '<div class="posEmpty" style="grid-column:1/-1">Ürün bulunamadı. Ürünler & stok bölümünden listenizi ekleyebilirsiniz.</div>';
 }
+// While a checkout is being written, completeRegister() snapshots the cart and then resets it; an item
+// added or changed in between would be lost, so the cart is locked until the write ends.
+const cartBusy = "Önceki işlem kaydediliyor, bir saniye bekleyin.";
 function addToCart(id) {
+  if (posBusy) return pStatus(cartBusy);
   let p = products.find((p) => p.id === id);
   if (!p) return pStatus("Ürün bulunamadı.");
   let unit;
@@ -409,6 +413,7 @@ function posScan(e) {
   document.getElementById("posBarcode").select();
 }
 function changeCart(i, delta) {
+  if (posBusy) return pStatus(cartBusy);
   let r = cart[i];
   if (!r) return;
   let q = r.q + delta,
@@ -481,7 +486,7 @@ function editRegisterProduct(id) {
   if (!p) return;
   modal(
     "Ürün bilgileri",
-    `<form onsubmit="saveRegisterProduct(event,'${esc(id)}')"><p>${esc(p.name)}</p><label class="field">Barkod<input name="barcode" value="${esc(p.barcode || "")}" maxlength="64"></label><label class="field">Satış fiyatı (TL)<input name="price" type="number" min="0" max="1000000000" step="0.01" required value="${p.price}"></label><label class="field">Alış maliyeti (TL) · isteğe bağlı<input name="cost" type="number" min="0" max="1000000000" step="0.01" value="${p.cost ?? ""}" placeholder="Bilinmiyorsa boş bırakın"></label><p id="productSaveError" role="alert" class="danger"></p><button class="primary">Kaydet</button></form>`,
+    `<form data-id="${esc(id)}" onsubmit="saveRegisterProduct(event,this.dataset.id)"><p>${esc(p.name)}</p><label class="field">Barkod<input name="barcode" value="${esc(p.barcode || "")}" maxlength="64"></label><label class="field">Satış fiyatı (TL)<input name="price" type="number" min="0" max="1000000000" step="0.01" required value="${p.price}"></label><label class="field">Alış maliyeti (TL) · isteğe bağlı<input name="cost" type="number" min="0" max="1000000000" step="0.01" value="${p.cost ?? ""}" placeholder="Bilinmiyorsa boş bırakın"></label><p id="productSaveError" role="alert" class="danger"></p><button class="primary">Kaydet</button></form>`,
   );
 }
 async function saveRegisterProduct(e, id) {
@@ -544,13 +549,13 @@ function creditScreen() {
       "Müşteri borçları ve sonradan yapılan tahsilatlar.",
       `<button onclick="navigate('sales')">+ Yeni satış</button>`,
     ) +
-    `<div class="reportBanner">Veresiye satış ciroya bir kez eklenir. Sonraki borç ödemeleri tahsilattır; yeni satış oluşturmaz.</div><div class="creditCards">${reg.customers.length ? reg.customers.map((c) => `<section class="card creditCard"><h2>${esc(c.name)}</h2><p class="muted">Hesap ${c.id.slice(0, 8)}</p><div class="value">${moneyKurus(customerBalance(c.id))}</div><p class="muted">Kalan borç</p><button class="primary" style="margin-top:15px" onclick="collectDebt('${esc(c.id)}')" ${customerBalance(c.id) > 0 ? "" : "disabled"}>Tahsilat kaydet</button></section>`).join("") : '<section class="card panel"><h2>Henüz müşteri hesabı yok</h2><p class="subtitle">Satış ekranında Veresiye → Yeni müşteri seçerek ilk hesabı oluşturun.</p></section>'}</div>`
+    `<div class="reportBanner">Veresiye satış ciroya bir kez eklenir. Sonraki borç ödemeleri tahsilattır; yeni satış oluşturmaz.</div><div class="creditCards">${reg.customers.length ? reg.customers.map((c) => `<section class="card creditCard"><h2>${esc(c.name)}</h2><p class="muted">Hesap ${esc(c.id.slice(0, 8))}</p><div class="value">${moneyKurus(customerBalance(c.id))}</div><p class="muted">Kalan borç</p><button class="primary" style="margin-top:15px" data-id="${esc(c.id)}" onclick="collectDebt(this.dataset.id)" ${customerBalance(c.id) > 0 ? "" : "disabled"}>Tahsilat kaydet</button></section>`).join("") : '<section class="card panel"><h2>Henüz müşteri hesabı yok</h2><p class="subtitle">Satış ekranında Veresiye → Yeni müşteri seçerek ilk hesabı oluşturun.</p></section>'}</div>`
   );
 }
 function collectDebt(id) {
   modal(
     "Borç tahsilatı",
-    `<form onsubmit="saveCollection(event,'${esc(id)}')"><h3>${esc(customerName(id))}</h3><p>Kalan borç: <strong>${moneyKurus(customerBalance(id))}</strong></p><label class="field">Ödenen tutar (TL)<input name="amount" type="number" min="0.01" max="${customerBalance(id) / 100}" step="0.01" required></label><label class="field">Tahsilat türü<select name="payment"><option value="cash">Nakit</option><option value="card">Kart</option></select></label><p class="muted">Bu kayıt müşteri borcunu azaltır. Stok ve satış cirosu değişmez.</p><p id="collectionError" class="danger" role="alert"></p><button class="primary">Tahsilatı kaydet</button></form>`,
+    `<form data-id="${esc(id)}" onsubmit="saveCollection(event,this.dataset.id)"><h3>${esc(customerName(id))}</h3><p>Kalan borç: <strong>${moneyKurus(customerBalance(id))}</strong></p><label class="field">Ödenen tutar (TL)<input name="amount" type="number" min="0.01" max="${customerBalance(id) / 100}" step="0.01" required></label><label class="field">Tahsilat türü<select name="payment"><option value="cash">Nakit</option><option value="card">Kart</option></select></label><p class="muted">Bu kayıt müşteri borcunu azaltır. Stok ve satış cirosu değişmez.</p><p id="collectionError" class="danger" role="alert"></p><button class="primary">Tahsilatı kaydet</button></form>`,
   );
 }
 async function saveCollection(e, id) {

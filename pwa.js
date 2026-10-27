@@ -64,6 +64,13 @@
     worker.addEventListener("statechange", check);
   }
 
+  // sw.js serves shell files stale-while-revalidate and says so when a background fetch brought a changed
+  // file: the next load uses it.
+  navigator.serviceWorker.addEventListener("message", (e) => {
+    if (e.data?.type === "shell-updated") announceUpdate();
+  });
+  navigator.serviceWorker.startMessages();
+
   navigator.serviceWorker
     .register("sw.js")
     .then((registration) => {

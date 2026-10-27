@@ -200,6 +200,44 @@ test("readBackup rejects files that are not a usable backup", () => {
   bad((b) => (b.reportIncluded = true), /rapor okunamadı/);
 });
 
+test("readBackup rejects hostile ids, fields and report day keys", () => {
+  const bad = (change, re) => {
+    let b = JSON.parse(JSON.stringify(sampleBackup()));
+    change(b);
+    assert.throws(() => S.readBackup(b), re);
+  };
+  const withReport =
+    (days, stats = {}) =>
+    (b) => {
+      b.reportIncluded = true;
+      b.report = { version: 1, days, products: {}, stats };
+    };
+  const day = { total: 1, rows: 1, qty: 1, hesap: 0, items: {} };
+  // Quotes survive esc() as &#39; and are decoded before an inline handler runs.
+  bad((b) => (b.register.products[0].id = "x');window.__xss=1;//"), /geçersiz ürün kimliği/);
+  bad((b) => (b.register.products[0].id = "a".repeat(65)), /geçersiz ürün kimliği/);
+  bad((b) => (b.register.products[0].id = "p 1"), /geçersiz ürün kimliği/);
+  bad((b) => (b.register.customers[0].id = '"><img src=x onerror=alert(1)>'), /geçersiz müşteri kimliği/);
+  bad((b) => (b.register.entries[0].id = "e1');alert(1);//"), /okunamayan.*#1/);
+  bad((b) => (b.register.entries[0].customerId = "c1'"), /okunamayan.*#1/);
+  bad((b) => (b.register.entries[0].items[0].id = "<p1>"), /okunamayan.*#1/);
+  bad((b) => (b.register.entries[0].items[0].q = "<img>"), /okunamayan.*#1/);
+  bad((b) => (b.register.products[0].stock = "<img src=x onerror=alert(1)>"), /ürün bilgisi/);
+  bad((b) => (b.register.products[0].price = "1"), /ürün bilgisi/);
+  bad((b) => (b.register.products[0].barcode = 5), /ürün bilgisi/);
+  bad(withReport({ "<img src=x onerror=window.__xss3=1>": day }), /YYYY-AA-GG/);
+  bad(withReport({ "2024-01-01": day, '"></option></select><img src=x>': day }), /YYYY-AA-GG/);
+  bad(withReport({ "2024-01-01": "x" }), /YYYY-AA-GG/);
+  bad(withReport({ "2024-01-01": day }, { rows: "<b>1</b>" }), /özet sayıları/);
+  // What the app itself writes still passes: UUIDs, hex ids, ISO day keys and the worker's stats.
+  let ok = JSON.parse(JSON.stringify(sampleBackup()));
+  ok.register.products[0].id = "0b6f0c8e-5d0a-4c1e-9a65-3f1b2c4d5e6f";
+  ok.register.entries[0].items[0].id = ok.register.products[0].id;
+  ok.register.customers[1].id = "9f86d081884c7d659a2feaa0c55ad015";
+  withReport({ "2024-01-01": day }, { rows: 1, hesap: 0, encoding: "windows-1254", columns: null })(ok);
+  assert.equal(S.readBackup(ok).summary.reportIncluded, true);
+});
+
 test("restoreRefusal: an older backup needs the override when this device has more entries", () => {
   let summary = { nextNumber: 10, entries: 9 };
   assert.match(S.restoreRefusal(summary, { nextNumber: 20, entries: 19 }), /Mevcut kayıtların yerine geç/);

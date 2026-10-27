@@ -557,6 +557,12 @@ code {
   color: var(--muted);
   font-size: 11px;
 }
+.miniTable .ciBand {
+  display: block;
+  margin-top: 3px;
+  font-size: 10px;
+  white-space: normal;
+}
 .honesty {
   margin: 20px 0 0;
 }
@@ -625,6 +631,13 @@ code {
 .pill.flag {
   background: #f2f0f4;
   color: #6c6472;
+  cursor: help;
+}
+.pill.unitWarn {
+  margin-left: 6px;
+  background: #fff3d6;
+  color: #7a5200;
+  font-size: 10px;
   cursor: help;
 }
 .plainList {

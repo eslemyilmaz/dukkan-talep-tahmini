@@ -51,7 +51,7 @@ function topSellers(compact = false) {
     all = dayItems(),
     revenue = all.reduce((s, p) => s + p.total, 0),
     mode = salesData ? "Gerçek satış" : "Örnek veri",
-    date = salesData ? ds(salesDate) : "Örnek gün";
+    date = salesData ? esc(ds(salesDate)) : "Örnek gün";
   return `<section class="card panel endOfDay"><div class="paneltop"><div><div class="eyebrow">Gün sonu raporu</div><h2>En çok satılan ürünler</h2><p class="muted">${date} · İlk ${Math.min(all.length, compact ? 5 : 10)} ürün · ${mode}</p></div><div class="endToolbar">${compact ? '<button class="softLink" onclick="navigate(\'dayEnd\')">Gün sonunu aç →</button>' : `<label>Sıralama<select aria-label="En çok satılanları sırala" onchange="setEndSort(this.value)"><option value="quantity" ${endSort === "quantity" ? "selected" : ""}>Satılan miktara göre</option><option value="revenue" ${endSort === "revenue" ? "selected" : ""}>Satış tutarına göre</option></select></label>`}</div></div><div class="tablewrap" tabindex="0" aria-label="En çok satılan ürünler tablosu"><table class="endTable"><thead><tr><th style="width:40px">Sıra</th><th>Ürün</th><th class="numeric">Satılan miktar</th><th class="numeric">Satış tutarı</th><th class="numeric">Ürün gelir payı</th></tr></thead><tbody>${
     rows.length
       ? rows
@@ -80,7 +80,10 @@ function importedDayEnd() {
           )
             .sort()
             .reverse()
-            .map((dt) => `<option value="${dt}" ${dt === salesDate ? "selected" : ""}>${ds(dt)}</option>`)
+            .map(
+              (dt) =>
+                `<option value="${esc(dt)}" ${dt === salesDate ? "selected" : ""}>${esc(ds(dt))}</option>`,
+            )
             .join("")}</select></label>`
         : ""
     }<div class="endSummary"><div class="card"><p class="muted">${salesData ? "Seçilen günün" : "Örnek günün"} cirosu</p><div class="value">${money(d ? d.total : 32450)}</div><span class="muted">${d ? "TOPLAM alanı · Hesap ve negatif işlemler dahil" : "Örnek satış tutarı"}</span></div><div class="card"><p class="muted">Satılan ürün çeşidi</p><div class="value">${fmt(items.length)}</div><span class="muted">Pozitif satış içeren ${salesData ? "barkodlar" : "ürün / ürün grupları"}</span></div><div class="card"><p class="muted">Ürün sıralamasındaki satış tutarı</p><div class="value">${money(revenue)}</div><span class="muted">Hesap ve negatif işlemler hariç</span></div></div>${topSellers()}<div class="insight"><strong>Asistanla paylaşım</strong><p class="muted">Bu özet, otomasyon bağlandığında gün sonu mesajına eklenebilir. Şu anda otomatik gönderim yok.</p><button class="link" onclick="navigate('assistant')">Bildirim tercihlerini aç →</button></div>`

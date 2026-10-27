@@ -166,6 +166,77 @@ function legacyRegister() {
   });
 }
 
+// A minimal HTML sales report (utf-8) with the given [date, barcode, name, qty, total] rows.
+function miniReport(rows) {
+  const tr = (cells) => "<tr>" + cells.map((c) => `<td>${c}</td>`).join("") + "</tr>\n";
+  return (
+    '<html><head><meta charset="utf-8"></head><body><table>\n' +
+    tr(["TARİH", "BARKOD", "ÜRÜN ADI", "MİKTAR", "TOPLAM"]) +
+    rows.map(tr).join("") +
+    "</table></body></html>"
+  );
+}
+// A stored (method 0) ZIP archive of { name: Buffer|string }.
+function storedZip(files) {
+  const zlib = require("node:zlib");
+  const locals = [],
+    centrals = [];
+  let offset = 0;
+  for (const [name, content] of Object.entries(files)) {
+    const data = Buffer.from(content),
+      fname = Buffer.from(name),
+      crc = zlib.crc32(data);
+    const local = Buffer.alloc(30);
+    local.writeUInt32LE(0x04034b50, 0);
+    local.writeUInt16LE(20, 4);
+    local.writeUInt32LE(crc, 14);
+    local.writeUInt32LE(data.length, 18);
+    local.writeUInt32LE(data.length, 22);
+    local.writeUInt16LE(fname.length, 26);
+    const central = Buffer.alloc(46);
+    central.writeUInt32LE(0x02014b50, 0);
+    central.writeUInt16LE(20, 4);
+    central.writeUInt16LE(20, 6);
+    central.writeUInt32LE(crc, 16);
+    central.writeUInt32LE(data.length, 20);
+    central.writeUInt32LE(data.length, 24);
+    central.writeUInt16LE(fname.length, 28);
+    central.writeUInt32LE(offset, 42);
+    locals.push(local, fname, data);
+    centrals.push(central, fname);
+    offset += 30 + fname.length + data.length;
+  }
+  const dir = Buffer.concat(centrals),
+    end = Buffer.alloc(22);
+  end.writeUInt32LE(0x06054b50, 0);
+  end.writeUInt16LE(Object.keys(files).length, 8);
+  end.writeUInt16LE(Object.keys(files).length, 10);
+  end.writeUInt32LE(dir.length, 12);
+  end.writeUInt32LE(offset, 16);
+  return Buffer.concat([...locals, dir, end]);
+}
+// Runs sales-worker.js in the page on one file; resolves { error } or { rows, days }.
+const runWorker = (page, name, buffer) =>
+  page.evaluate(
+    ({ name, b64 }) =>
+      new Promise((resolve) => {
+        const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0)),
+          w = new Worker("sales-worker.js");
+        w.onmessage = ({ data }) => {
+          if (data.progress) return;
+          w.terminate();
+          resolve(
+            data.error
+              ? { error: data.error }
+              : { rows: data.result.stats.rows, days: Object.keys(data.result.days) },
+          );
+        };
+        w.onerror = (e) => resolve({ error: "worker crashed: " + e.message });
+        w.postMessage(new File([bytes], name));
+      }),
+    { name, b64: Buffer.from(buffer).toString("base64") },
+  );
+
 async function gotoNav(page, label) {
   const buttons = page.locator("#nav button");
   const texts = (await buttons.allTextContents()).map((t) => t.trim());
@@ -353,6 +424,34 @@ async function gotoNav(page, label) {
       if (count !== day.length + " kayıt") throw Error(`${count}, IndexedDB has ${day.length}`);
       return `${rows} rows · ${count} · ${shown}`;
     });
+
+    await step(
+      "sales: an item scanned while the previous sale is saving is refused, never lost",
+      async () => {
+        await gotoNav(page, "Satış");
+        const r = await page.evaluate(async () => {
+          setPayment("cash"); // the credit step left "Veresiye" selected
+          const [a, b] = products.filter((p) => p.price > 0 && p.stock > 2);
+          addToCart(a.id);
+          const pending = completeRegister(); // checkout tapped
+          addToCart(b.id); // next item scanned while the commit is in flight
+          const status = document.getElementById("posStatus")?.textContent || "";
+          const during = cart.map((x) => x.name);
+          await pending;
+          const after = cart.map((x) => x.name);
+          addToCart(b.id); // once saved, the same scan works
+          const retry = cart.map((x) => x.name);
+          clearCart();
+          return { a: a.name, b: b.name, status, during, after, retry };
+        });
+        const want = "Önceki işlem kaydediliyor, bir saniye bekleyin.";
+        const refused = r.status === want && !r.during.includes(r.b);
+        if (!refused && !r.after.includes(r.b)) throw Error("second item lost: " + JSON.stringify(r));
+        if (r.after.includes(r.a)) throw Error("saved item still in the cart: " + r.after.join());
+        if (r.retry.join() !== r.b) throw Error("retry cart: " + r.retry.join());
+        return refused ? `${r.b}: "${want}"` : `${r.b} kept in the cart`;
+      },
+    );
 
     let backupFile = "",
       backup = null;
@@ -663,6 +762,129 @@ async function gotoNav(page, label) {
       return "2 + 4 satır · miktar 3/4 · 2026-03-03 eksik gün";
     });
     fs.rmSync(productDayDir, { recursive: true, force: true });
+
+    await step("backup: hostile ids and report day keys are rejected on restore", async () => {
+      if (!backup) throw Error("no backup from an earlier step");
+      const ctx = await browser.newContext();
+      const fresh = watch(await ctx.newPage());
+      const dir = fs.mkdtempSync(path.join(require("node:os").tmpdir(), "yedek-"));
+      const day = { total: 1, rows: 1, qty: 1, hesap: 0, items: {} };
+      const variants = {
+        "product id": (b) => (b.register.products[0].id = "x');window.__xss2=1;//"),
+        "customer id": (b) => (b.register.customers[0].id = "c');window.__xss5=1;//"),
+        "entry id": (b) => (b.register.entries[0].id = '"><img src=x onerror="window.__xss4=1">'),
+        "report day": (b) => {
+          b.reportIncluded = true;
+          b.report = {
+            version: 1,
+            days: { "2024-01-01": day, '"></option></select><img src=x onerror=window.__xss3=1>': day },
+            products: {},
+            stats: { rows: 2, hesap: 0, negative: 0, invalid: 0, fractional: 0, duplicate: 0 },
+          };
+        },
+      };
+      try {
+        await fresh.goto(url, { waitUntil: "networkidle" });
+        await gotoNav(fresh, "Asistan");
+        const out = [];
+        for (const [label, change] of Object.entries(variants)) {
+          const b = structuredClone(backup);
+          change(b);
+          const file = path.join(dir, label.replace(" ", "-") + ".json");
+          fs.writeFileSync(file, JSON.stringify(b));
+          await fresh.setInputFiles("#restoreFile", file);
+          await fresh.waitForFunction(() => document.querySelector("#restoreResult")?.textContent.trim());
+          const msg = (await fresh.locator("#restoreResult").textContent()).trim();
+          if (!msg.startsWith("Yedek kullanılamaz:")) throw Error(`${label}: ${msg.slice(0, 80)}`);
+          if (await fresh.locator("#restoreConfirm").count()) throw Error(label + ": restore offered");
+          out.push(label);
+        }
+        const fired = await fresh.evaluate(() =>
+          ["__xss2", "__xss3", "__xss4", "__xss5"].filter((k) => k in window),
+        );
+        if (fired.length) throw Error("script ran: " + fired.join());
+        return out.join(" · ") + " reddedildi";
+      } finally {
+        fs.rmSync(dir, { recursive: true, force: true });
+        await ctx.close();
+      }
+    });
+
+    await step("escaping: ids with quotes stay data, hostile report days stay text", async () => {
+      const ctx = await browser.newContext();
+      const fresh = watch(await ctx.newPage());
+      try {
+        await fresh.goto(url, { waitUntil: "networkidle" });
+        await fresh.waitForSelector("#nav button", { timeout: 5000 });
+        // Written straight into IndexedDB (past readBackup), so only the handlers stand in the way.
+        const meta = (await readDb(fresh)).meta,
+          id = "x');window.__xss2=1;//";
+        meta.products[0].id = id;
+        await putRegisterMeta(fresh, meta);
+        await fresh.reload({ waitUntil: "networkidle" });
+        await gotoNav(fresh, "Ürünler & stok");
+        await fresh.locator("#stockTable button.link").first().click();
+        const title = await fresh.locator("#mtitle").textContent();
+        await fresh.evaluate(() => document.getElementById("modal").close());
+        if (!title.startsWith(meta.products[0].name)) throw Error("edit modal: " + title);
+        await gotoNav(fresh, "Satış");
+        await fresh.locator(".quickProducts .tileAdd").first().click();
+        const cartText = await fresh.locator(".posReceipt .receiptItems").textContent();
+        if (!cartText.includes(meta.products[0].name)) throw Error("cart: " + cartText.slice(0, 60));
+        const hostile = '"></option></select><img src=x onerror=window.__xss3=1>';
+        await fresh.evaluate((key) => {
+          const day = { total: 1, rows: 1, qty: 1, hesap: 0, items: {} };
+          activateSales({
+            version: 1,
+            days: { "2024-01-01": day, [key]: day },
+            products: {},
+            stats: { rows: 2, hesap: 0, negative: 0, invalid: 0, fractional: 0, duplicate: 0 },
+          });
+          salesDate = key;
+        }, hostile);
+        await gotoNav(fresh, "Genel bakış");
+        await fresh.evaluate(() => setDaySource("import"));
+        await gotoNav(fresh, "Gün sonu");
+        const options = await fresh
+          .locator('#content select[aria-label="Gün sonu rapor tarihi"] option')
+          .count();
+        const fired = await fresh.evaluate(() => ["__xss2", "__xss3"].filter((k) => k in window));
+        if (fired.length) throw Error("script ran: " + fired.join());
+        if (options !== 2) throw Error(options + " day options");
+        return "data-id handlers · 2 gün seçeneği metin olarak";
+      } finally {
+        await ctx.close();
+      }
+    });
+
+    await step("sales worker: month 13 / day 32 are counted as invalid dates", async () => {
+      const r = await runWorker(
+        page,
+        "rapor.xls",
+        miniReport([
+          ["01.03.2026", "8690000000001", "SÜT 1 L", "1", "40,00"],
+          ["15.13.2026", "8690000000001", "SÜT 1 L", "1", "40,00"],
+          ["32.01.2026", "8690000000001", "SÜT 1 L", "1", "40,00"],
+        ]),
+      );
+      if (!r.error?.startsWith("2 satırda tarih veya sayı okunamadı")) throw Error(JSON.stringify(r));
+      if (/invalid time value/i.test(r.error)) throw Error(r.error);
+      return r.error.split(";")[0];
+    });
+
+    await step("sales worker: macOS ZIP (__MACOSX/, ._ files) is read", async () => {
+      const report = miniReport([["01.03.2026", "8690000000001", "SÜT 1 L", "2", "80,00"]]);
+      const zip = storedZip({
+        "rapor/satis.xls": report,
+        "__MACOSX/rapor/._satis.xls": Buffer.from([0, 5, 22, 7, 0, 2, 0, 0]),
+        "rapor/._satis.xls": Buffer.from([0, 5, 22, 7, 0, 2, 0, 0]),
+      });
+      const r = await runWorker(page, "rapor.zip", zip);
+      if (r.error || r.rows !== 1 || r.days.join() !== "2026-03-01") throw Error(JSON.stringify(r));
+      const two = await runWorker(page, "iki.zip", storedZip({ "a.xls": report, "b.xls": report }));
+      if (!two.error?.includes("tek bir XLS/HTML")) throw Error("two reports: " + JSON.stringify(two));
+      return "1 satır · 2026-03-01 · iki rapor hâlâ reddediliyor";
+    });
 
     await step("no console/page errors", async () => {
       if (errors.length) throw Error(errors.length + " error(s)");

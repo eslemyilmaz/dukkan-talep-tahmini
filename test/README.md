@@ -9,6 +9,10 @@ Gereksinim: Node 22 (`.nvmrc`). Birim testleri için `npm install` gerekmez; Nod
 | `npm run test:unit`  | Yalnızca `test/unit/` birim testleri.                      |
 | `npm run test:smoke` | Playwright ile tarayıcı duman testi (`test/smoke/run.js`). |
 
+**Service worker sürümü:** `sw.js` kabuk dosyalarını (`ASSETS`) önbellekten verip arka planda yeniler; önbellek adı
+`SHELL_VERSION` ve dosyaların kısa özeti `SHELL_HASH`'ten türer. Bir kabuk dosyasını değiştirdikten sonra
+`npm run sw:hash` çalıştırın; `test/unit/sw-version.test.js` özet eskiyse başarısız olur.
+
 **`test/unit/register-core.test.js`** — `register-core.js` kasa kuralları: `cents()` yuvarlama
 (1.005, 2.675, 5.015, 0.1+0.2, 1e9 sınırı), nakit/kart/veresiye satış, yeni müşteri, bakiye, tahsilat
 (borç içinde/üstünde), işletme içi kullanım (maliyetli/maliyetsiz), hatalı ürün satırları, işlem kimliği
@@ -19,7 +23,8 @@ kontrollerinin sırası, `nextNumber` artışı, `commit`'in girdiyi değiştirm
 eski işlemlere ihtiyaç duyduğu) ve 400 rastgele istekle "kısmi `entries` ile `commit` = tüm durumla
 `commit`" denkliği (yinelenen kimlik ve borçtan fazla tahsilat retleri dahil), `checkMeta` /
 `splitRegister`, yedek dosyası (`buildBackup` / `readBackup` gidiş-dönüş, özet, hatalı dosyalar) ve eski
-yedeğin yalnızca "Mevcut kayıtların yerine geç" ile yüklenebilmesi (`restoreRefusal`).
+yedeğin yalnızca "Mevcut kayıtların yerine geç" ile yüklenebilmesi (`restoreRefusal`); tırnaklı / biçimsiz ürün,
+müşteri ve işlem kimliklerinin, sayı olmayan ürün alanlarının ve YYYY-AA-GG olmayan rapor günlerinin reddi.
 
 **`test/smoke/run.js`** — Depo kökünde boş bir portta `python3 -m http.server` başlatır, uygulamayı
 Chromium'da `?debug=1` ile açar ve sırasıyla:
@@ -50,6 +55,18 @@ Chromium'da `?debug=1` ile açar ve sırasıyla:
     klasöründe `python3 -c` ile `dukkan_tahmin.io_csv.load_canonical` çağrılarak satır sayısını, miktarları,
     tutarları ve satış olmayan günün eksik gün sayıldığını. `python3` ya da paket içe aktarılamazsa bu adım
     `SKIP:` ile geçilir.
+
+11. sepete ekleme: önceki satış kaydedilirken okutulan ürünün "Önceki işlem kaydediliyor, bir saniye bekleyin."
+    ile reddedildiğini (kaybolmadığını); kimliği tırnaklı / rapor günü biçimsiz yedeklerin geri yüklemede
+    reddedildiğini; IndexedDB'ye doğrudan yazılmış tırnaklı ürün kimliğinin `data-id` ile çalıştığını ve hiçbir
+    betiğin çalışmadığını; satış raporunda 13. ay / 32. günün geçersiz tarih sayıldığını ve macOS ZIP'indeki
+    `__MACOSX/` ile `._` dosyalarının atlandığını.
+
+**`test/smoke/pwa-forecast.js`** — manifest, service worker (önbellek adı `sw.js`'ten), yalnızca bir kabuk
+dosyası değişen bir yayında güncelleme uyarısı ve bir yenilemede yeni dosya, çevrimdışı açılış; `tahmin.json`:
+hatalı dosyalar (işaretleme içeren / metin olmayan `evaluation.origins` dahil), görünüm hatasında yedek kart,
+WAPE farkının bootstrap aralığı (aralık 0'ı içeriyorsa üstünlük iddiası yok), "birim farkı" uyarısı, tek
+yuvarlamalı sipariş önerisi, stok sayfası, kalıcılık ve kaldırma.
 
 Konsol hataları ve `pageerror` olayları tüm sayfalardan toplanır; herhangi bir adım ya da hata varsa çıkış
 kodu 1 olur. Playwright'ın sistemde kurulu olması gerekir (`require("playwright")`).
