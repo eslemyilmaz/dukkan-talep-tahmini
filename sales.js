@@ -41,12 +41,13 @@ async function restoreSales() {
 }
 function activateSales(data) {
   salesData = data;
-  salesDate = Object.keys(data.days).sort().at(-1);
+  salesDate =
+    Object.keys(data.days || {})
+      .sort()
+      .at(-1) || "";
+  let list = Object.values(data.products || {}).sort((a, b) => b.qty - a.qty);
   trialProduct =
-    Object.values(data.products)
-      .filter((p) => p.name.toLocaleUpperCase("tr").includes("EKMEK"))
-      .sort((a, b) => b.qty - a.qty)[0]?.barcode ||
-    Object.values(data.products).sort((a, b) => b.qty - a.qty)[0]?.barcode;
+    list.find((p) => p.name.toLocaleUpperCase("tr").includes("EKMEK"))?.barcode || list[0]?.barcode || "";
 }
 const originalReports = reports;
 reports = function () {
@@ -163,21 +164,33 @@ function backtestProduct(b) {
     dates = Object.keys(salesData.days).sort(),
     tests = dates.slice(-56);
   if (dates.length < 112) return null;
+  let fallbacks = 0;
   let outcomes = tests.map((dt) => {
     let weekday = new Date(dt + "T12:00:00Z").getUTCDay(),
-      past = dates.filter((d) => d < dt && new Date(d + "T12:00:00Z").getUTCDay() === weekday).slice(-8),
-      pred = past.reduce((s, d) => s + (pr.daily[d] || 0), 0) / past.length,
+      earlier = dates.filter((d) => d < dt),
+      past = earlier.filter((d) => new Date(d + "T12:00:00Z").getUTCDay() === weekday).slice(-8),
+      fallback = !past.length;
+    // No earlier same-weekday day: mean of the last 8 recorded days of any weekday, else 0.
+    if (fallback) {
+      past = earlier.slice(-8);
+      fallbacks++;
+    }
+    let pred = past.length ? past.reduce((s, d) => s + (pr.daily[d] || 0), 0) / past.length : 0,
       prev = new Date(dt + "T12:00:00Z");
     prev.setUTCDate(prev.getUTCDate() - 7);
     let prevKey = prev.toISOString().slice(0, 10),
       last = Object.hasOwn(salesData.days, prevKey) ? pr.daily[prevKey] || 0 : null;
-    return { date: dt, actual: pr.daily[dt] || 0, pred, last };
+    return { date: dt, actual: pr.daily[dt] || 0, pred, last, fallback };
   });
   let err = outcomes.reduce((s, r) => s + Math.abs(r.actual - r.pred), 0),
     total = outcomes.reduce((s, r) => s + r.actual, 0),
     paired = outcomes.filter((r) => r.last !== null),
-    weekdayMAE = paired.reduce((s, r) => s + Math.abs(r.actual - r.pred), 0) / paired.length,
-    lastMAE = paired.reduce((s, r) => s + Math.abs(r.actual - r.last), 0) / paired.length;
+    weekdayMAE = paired.length
+      ? paired.reduce((s, r) => s + Math.abs(r.actual - r.pred), 0) / paired.length
+      : null,
+    lastMAE = paired.length
+      ? paired.reduce((s, r) => s + Math.abs(r.actual - r.last), 0) / paired.length
+      : null;
   return {
     outcomes,
     mae: err / outcomes.length,
@@ -186,6 +199,7 @@ function backtestProduct(b) {
     weekdayMAE,
     paired: paired.length,
     total,
+    fallbacks,
   };
 }
 const beforeRealForecastTable = forecastTable;
@@ -195,6 +209,11 @@ forecastTable = function () {
 const beforeRealForecast = forecasts;
 forecasts = function () {
   if (!salesData) return beforeRealForecast();
+  if (!Object.keys(salesData.products).length)
+    return (
+      title("Gerçek veriyle tahmin denemesi", "Geçmişi tahmin edin, sonucu gerçek satışla karşılaştırın.") +
+      `<div class="note">Raporda ürün bazlı pozitif satış satırı yok; tüm satırlar Hesap kaydı, negatif işlem veya barkodsuz. Tahmin denemesi için ürün satırları içeren bir rapor yükleyin.</div>`
+    );
   let options = Object.values(salesData.products).sort((a, b) => a.name.localeCompare(b.name, "tr"));
   return (
     title("Gerçek veriyle tahmin denemesi", "Geçmişi tahmin edin, sonucu gerçek satışla karşılaştırın.") +
@@ -203,14 +222,14 @@ forecasts = function () {
 };
 function renderTrial() {
   let target = document.getElementById("realTrial");
-  if (!target) return;
+  if (!target || !salesData?.products[trialProduct]) return;
   let result = backtestProduct(trialProduct);
   if (!result) {
     target.innerHTML = "<p>Bu test için en az 112 farklı kayıtlı gün gerekiyor.</p>";
     return;
   }
-  let { outcomes, mae, wape, lastMAE, weekdayMAE, paired, total } = result;
-  target.innerHTML = `<p class="muted">Test: ${ds(outcomes[0].date)}–${ds(outcomes.at(-1).date)} · ${outcomes.length} kayıtlı gün · gerçekleşen toplam miktar: ${fmt(total)}</p><div class="stats" style="grid-template-columns:repeat(auto-fit,minmax(140px,1fr));margin-top:18px"><div class="stat card"><p class="muted">Ortalama mutlak hata · MAE</p><div class="value">${fmt(mae)}</div><p class="muted">Ürünün rapor birimi / gün</p></div><div class="stat card"><p class="muted">Ağırlıklı mutlak yüzde hata</p><div class="value">${wape === null ? "—" : "%" + fmt(wape)}</div><p class="muted">${wape === null ? "Gerçekleşen toplam sıfır; tanımsız." : "WAPE · düşük olması daha iyi"}</p></div><div class="stat card"><p class="muted">Geçen haftayı tekrarla · MAE</p><div class="value">${Number.isFinite(lastMAE) ? fmt(lastMAE) : "—"}</div><p class="muted">Ortak ${paired} gün; ortalama yönteminin MAE’si ${fmt(weekdayMAE)}</p></div></div><p class="muted">Veri olmayan takvim günleri test edilmedi. Ürünün bulunmadığı kayıtlı günler bu ön denemede sıfır kabul edildi; ürünün satışta olup olmadığı ve stok tükenmeleri doğrulanmalı. Hesap ve negatif işlemler talep serisinden çıkarıldı; benzer satırlar korunuyor.</p><div class="tablewrap" style="max-height:360px;overflow:auto;margin-top:18px"><table><thead><tr><th>Tarih</th><th>Gerçek</th><th>Ortalama tahmini</th><th>Mutlak hata</th><th>Geçen hafta</th></tr></thead><tbody>${outcomes.map((r) => `<tr><td>${ds(r.date)}</td><td>${fmt(r.actual)}</td><td>${fmt(r.pred)}</td><td>${fmt(Math.abs(r.actual - r.pred))}</td><td>${r.last === null ? "—" : fmt(r.last)}</td></tr>`).join("")}</tbody></table></div><p class="muted">Bu sonuçlar gelecek tahmin başarısı garantisi veya doğruluk yüzdesi değildir. İleri tarihli tahminler ve eğitilmiş ML modeli henüz bağlı değil.</p>`;
+  let { outcomes, mae, wape, lastMAE, weekdayMAE, paired, total, fallbacks } = result;
+  target.innerHTML = `<p class="muted">Test: ${ds(outcomes[0].date)}–${ds(outcomes.at(-1).date)} · ${outcomes.length} kayıtlı gün · gerçekleşen toplam miktar: ${fmt(total)}</p><div class="stats" style="grid-template-columns:repeat(auto-fit,minmax(140px,1fr));margin-top:18px"><div class="stat card"><p class="muted">Ortalama mutlak hata · MAE</p><div class="value">${fmt(mae)}</div><p class="muted">Ürünün rapor birimi / gün</p></div><div class="stat card"><p class="muted">Ağırlıklı mutlak yüzde hata</p><div class="value">${wape === null ? "—" : "%" + fmt(wape)}</div><p class="muted">${wape === null ? "Gerçekleşen toplam sıfır; tanımsız." : "WAPE · düşük olması daha iyi"}</p></div><div class="stat card"><p class="muted">Geçen haftayı tekrarla · MAE</p><div class="value">${lastMAE === null ? "—" : fmt(lastMAE)}</div><p class="muted">Ortak ${paired} gün; ortalama yönteminin MAE’si ${weekdayMAE === null ? "—" : fmt(weekdayMAE)}</p></div></div>${fallbacks ? `<p class="muted">${fallbacks} test gününde aynı haftanın gününe ait önceki kayıt yoktu; bu günlerde son 8 kayıtlı günün ortalaması (o da yoksa 0) kullanıldı.</p>` : ""}<p class="muted">Veri olmayan takvim günleri test edilmedi. Ürünün bulunmadığı kayıtlı günler bu ön denemede sıfır kabul edildi; ürünün satışta olup olmadığı ve stok tükenmeleri doğrulanmalı. Hesap ve negatif işlemler talep serisinden çıkarıldı; benzer satırlar korunuyor.</p><div class="tablewrap" style="max-height:360px;overflow:auto;margin-top:18px"><table><thead><tr><th>Tarih</th><th>Gerçek</th><th>Ortalama tahmini</th><th>Mutlak hata</th><th>Geçen hafta</th></tr></thead><tbody>${outcomes.map((r) => `<tr><td>${ds(r.date)}</td><td>${fmt(r.actual)}</td><td>${fmt(r.pred)}</td><td>${fmt(Math.abs(r.actual - r.pred))}</td><td>${r.last === null ? "—" : fmt(r.last)}</td></tr>`).join("")}</tbody></table></div><p class="muted">Bu sonuçlar gelecek tahmin başarısı garantisi veya doğruluk yüzdesi değildir. İleri tarihli tahminler ve eğitilmiş ML modeli henüz bağlı değil.</p>`;
 }
 const beforeRealRender = render;
 render = function () {
