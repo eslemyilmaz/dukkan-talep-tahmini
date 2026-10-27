@@ -76,13 +76,18 @@ Web uygulaması derleme adımı gerektirmez; dosyalar doğrudan sunulur.
 
 ```sh
 npm test                    # Node.js yerleşik test çalıştırıcısı (node:test), test/ klasörü
-python3 -m pytest model/    # Python model katmanı (planlanıyor)
+python3 -m pytest model/    # Python model katmanı
 ```
 
 Kök dizindeki dosyalar:
 
-- `index.html`, `polish.css`, `polish.js` — arayüz ve genel ekranlar
-- `register.js`, `register-core.js`, `register.css` — satış ekranı, veresiye ve kasa kayıtları
-- `sales.js`, `sales-worker.js` — satış raporu içe aktarma ve geri-test
+- `index.html`, `polish.css`, `register.css` — işaretleme ve stiller
+- `main.js`, `app.js` — sayfa listesi, yönlendirici, ortak yardımcılar ve durum
+- `stock.js`, `overview.js`, `forecast.js`, `day-end.js`, `assistant.js`, `reports.js` — ekranlar
+- `register.js`, `register-core.js` — satış ekranı, veresiye ve kasa kuralları
+- `sales-report.js`, `sales-worker.js` — satış raporu içe aktarma ve geri-test
+- `categories.js` — kategori simgeleri
+- `model/` — Python tahmin katmanı (kendi README'si var)
+- `test/` — birim ve duman testleri
 - `baslat.py`, `BASLAT_*` — yerel sunucu başlatıcıları
 - `assets/` — logo ve uygulama simgeleri

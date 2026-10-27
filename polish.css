@@ -449,3 +449,12 @@ nav button {
     height: 34px;
   }
 }
+.previewBanner {
+  margin-top: 12px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: #f2ebdf;
+  color: #8b6c39;
+  font-size: 12px;
+  text-align: center;
+}

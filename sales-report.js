@@ -1,9 +1,12 @@
+/* Imported sales report: IndexedDB persistence, worker invocation, report-based overview parts,
+   the real-data chart, daily details and the backtest trial shown on the forecasts page. */
+"use strict";
+
 let salesData = null,
   salesDate = "",
   trialProduct = "",
   salesBusy = false;
-const fmt = (n) => new Intl.NumberFormat("tr-TR", { maximumFractionDigits: 3 }).format(n);
-const ds = (d) => d.split("-").reverse().join(".");
+
 function salesDB() {
   return new Promise((resolve, reject) => {
     let r = indexedDB.open("dukkan-sales", 1);
@@ -22,6 +25,7 @@ async function persistSales(data) {
   });
   db.close();
 }
+// Resolves true when a stored report was activated. Never rejects; the caller renders.
 async function restoreSales() {
   try {
     let db = await salesDB();
@@ -31,12 +35,12 @@ async function restoreSales() {
       r.onerror = () => reject(r.error);
     });
     db.close();
-    if (data) {
-      activateSales(data);
-      render();
-    }
+    if (!data) return false;
+    activateSales(data);
+    return true;
   } catch (e) {
     console.warn("Satış raporu geri yüklenemedi.");
+    return false;
   }
 }
 function activateSales(data) {
@@ -49,16 +53,15 @@ function activateSales(data) {
   trialProduct =
     list.find((p) => p.name.toLocaleUpperCase("tr").includes("EKMEK"))?.barcode || list[0]?.barcode || "";
 }
-const originalReports = reports;
-reports = function () {
-  return (
-    `<section class="card panel" style="margin-bottom:24px;border-top:3px solid var(--red)"><h2>Gerçek satış raporuyla deneme</h2><p class="subtitle">Gönderdiğiniz market raporu biçimi desteklenir: ZIP içindeki HTML tabanlı XLS veya doğrudan XLS. En fazla 300 MB dosya / 500 MB açılmış rapor.</p><label class="field">Satış raporu seç<input type="file" id="salesFile" accept=".zip,.xls,.html,.htm" ${salesBusy ? "disabled" : ""}></label><button id="salesImport" class="primary" onclick="loadSalesFile()" ${salesBusy ? "disabled" : ""}>${salesBusy ? "Rapor işleniyor…" : "Satış raporunu kontrol et ve yükle"}</button><p id="salesStatus" class="muted" role="status">${salesData ? `${fmt(salesData.stats.rows)} satış satırı yüklü. Yeni dosya mevcut satış raporunun yerini alır; stokları değiştirmez.` : "Dosya bu tarayıcıda işlenir. Müşteri ve personel alanları saklanmaz; sunucuya satış verisi gönderilmez."}</p><p class="muted">Satış tutarı, rapordaki TOPLAM alanından alınır. “Hesap” ve negatif satırlar ciro toplamında korunur; ürün talep serisinden çıkarılır. Kayıt olmayan günler otomatik sıfır sayılmaz.</p></section>` +
-    originalReports().replace(
-      "Mevcut market raporunuzun sütunlarını inceledikten sonra satış aktarımını bağlayacağız. Stok CSV aktarımı model eğitimi başlatmaz.",
-      "Üstteki satış raporu alanından gerçek raporunuzu yükleyebilirsiniz. Satış aktarımı güncel stok oluşturmaz ve XGBoost eğitimi başlatmaz.",
-    )
-  );
-};
+function setSalesDate(d) {
+  salesDate = d;
+  render();
+}
+
+// ---------- Import ----------
+function salesImportPanel() {
+  return `<section class="card panel" style="margin-bottom:24px;border-top:3px solid var(--red)"><h2>Gerçek satış raporuyla deneme</h2><p class="subtitle">Gönderdiğiniz market raporu biçimi desteklenir: ZIP içindeki HTML tabanlı XLS veya doğrudan XLS. En fazla 300 MB dosya / 500 MB açılmış rapor.</p><label class="field">Satış raporu seç<input type="file" id="salesFile" accept=".zip,.xls,.html,.htm" ${salesBusy ? "disabled" : ""}></label><button id="salesImport" class="primary" onclick="loadSalesFile()" ${salesBusy ? "disabled" : ""}>${salesBusy ? "Rapor işleniyor…" : "Satış raporunu kontrol et ve yükle"}</button><p id="salesStatus" class="muted" role="status">${salesData ? `${fmt(salesData.stats.rows)} satış satırı yüklü. Yeni dosya mevcut satış raporunun yerini alır; stokları değiştirmez.` : "Dosya bu tarayıcıda işlenir. Müşteri ve personel alanları saklanmaz; sunucuya satış verisi gönderilmez."}</p><p class="muted">Satış tutarı, rapordaki TOPLAM alanından alınır. “Hesap” ve negatif satırlar ciro toplamında korunur; ürün talep serisinden çıkarılır. Kayıt olmayan günler otomatik sıfır sayılmaz.</p></section>`;
+}
 async function loadSalesFile() {
   if (salesBusy) return;
   let f = document.getElementById("salesFile").files[0],
@@ -76,6 +79,10 @@ async function loadSalesFile() {
   document.getElementById("salesFile").disabled = true;
   status.textContent = "Rapor okunuyor; lütfen bu sekmeyi açık tutun…";
   let worker = new Worker("sales-worker.js");
+  const setStatus = (t) => {
+    let el = document.getElementById("salesStatus");
+    if (el) el.textContent = t;
+  };
   function finish() {
     salesBusy = false;
     worker.terminate();
@@ -89,22 +96,16 @@ async function loadSalesFile() {
     toast("Rapor okunamadı. ZIP içindeki XLS dosyasını doğrudan deneyin.");
   };
   worker.onmessage = async ({ data }) => {
-    if (data.progress) {
-      if (document.getElementById("salesStatus"))
-        document.getElementById("salesStatus").textContent = fmt(data.progress) + " satır işlendi…";
-      return;
-    }
+    if (data.progress) return setStatus(fmt(data.progress) + " satır işlendi…");
     if (data.error) {
       finish();
-      if (document.getElementById("salesStatus"))
-        document.getElementById("salesStatus").textContent = data.error;
-      return;
+      return setStatus(data.error);
     }
     try {
       await persistSales(data.result);
       activateSales(data.result);
       finish();
-      navigate("Genel bakış");
+      navigate("overview");
       toast("Gerçek satış raporu yüklendi.");
     } catch (e) {
       finish();
@@ -113,6 +114,8 @@ async function loadSalesFile() {
   };
   worker.postMessage(f);
 }
+
+// ---------- Overview parts (used by overview.js when a report is loaded) ----------
 function actualSalesDetails() {
   let day = salesData.days[salesDate],
     items = Object.entries(day.items).sort((a, b) => b[1].total - a[1].total);
@@ -121,27 +124,6 @@ function actualSalesDetails() {
     `<p class="muted">Pozitif miktar ve tutarlı, ürünle eşleşen satırlar. Kesirli miktarlar rapor birimindedir; tümünü “adet” olarak yorumlamayın.</p><div class="tablewrap" style="max-height:50vh;overflow:auto"><table><thead><tr><th>Ürün</th><th>Miktar</th><th>Tutar</th></tr></thead><tbody>${items.map(([b, it]) => `<tr><td>${esc(salesData.products[b].name)}</td><td>${fmt(it.q)}</td><td>${money(it.total)}</td></tr>`).join("")}</tbody></table></div><p class="muted">Hesap kayıtları ve negatif işlemler bu ürün listesinde yer almaz. Günlük ciro bu nedenle ürün tablosu toplamından farklı olabilir.</p>`,
   );
 }
-const exampleOpenSales = openSales;
-openSales = function () {
-  if (salesData) actualSalesDetails();
-  else exampleOpenSales();
-};
-const beforeSalesOverview = overview;
-overview = function () {
-  let html = beforeSalesOverview();
-  if (!salesData) return html;
-  let dates = Object.keys(salesData.days).sort(),
-    d = salesData.days[salesDate];
-  return html
-    .replace(
-      "Bugünün özeti, öncelikleriniz ve bir sonraki adımınız.",
-      "Yüklenen satış raporunuzun özeti. Tarihi seçerek geçmiş günleri inceleyin.",
-    )
-    .replace(
-      '<div class="stats">',
-      `<div class="note"><strong>Gerçek satış verisi · ${ds(dates[0])}–${ds(dates.at(-1))}</strong><label class="field">İncelenen gün<select aria-label="Satış günü" onchange="salesDate=this.value;render()">${dates.map((dt) => `<option value="${dt}" ${dt === salesDate ? "selected" : ""}>${ds(dt)}</option>`).join("")}</select></label>Güncel stok listesi henüz bağlı değil. Aşağıdaki stok kartları örnek / elle girilen stoklardır.</div><div class="stats">`,
-    );
-};
 function realChart() {
   let dates = Object.keys(salesData.days)
       .sort()
@@ -157,8 +139,40 @@ function realChart() {
   return `<svg viewBox="0 0 600 270" class="chart" role="img" aria-label="Yüklenen rapordaki son 14 kayıtlı günün cirosu"><line x1="45" y1="225" x2="560" y2="225" stroke="#ddd"/><polyline points="${pts}" fill="none" stroke="#b72b36" stroke-width="2.5"/>${dates
     .filter((d, i) => i === 0 || i === dates.length - 1)
     .map((d, i) => `<text x="${i ? 460 : 45}" y="255" fill="#888" font-size="12">${ds(d)}</text>`)
-    .join("")}<text x="45" y="25" fill="#888" font-size="12">Üst değer: ${money(max)}</text></svg>`;
+    .join("")}<text x="45" y="25" fill="#888" font-size="12">Üst değer: ${money(max, 0)}</text></svg>`;
 }
+function reportOverviewParts() {
+  let dates = Object.keys(salesData.days).sort(),
+    d = salesData.days[salesDate],
+    st = salesData.stats;
+  return {
+    subtitle: "Yüklenen satış raporunuzun özeti. Tarihi seçerek geçmiş günleri inceleyin.",
+    buttons: `<button onclick="navigate('reports')">↓ Rapor yükle</button><button class="primary" onclick="addProduct()">+ Ürün ekle</button>`,
+    note: `<div class="note"><strong>Gerçek satış verisi · ${ds(dates[0])}–${ds(dates.at(-1))}</strong><label class="field">İncelenen gün<select aria-label="Satış günü" onchange="setSalesDate(this.value)">${dates.map((dt) => `<option value="${dt}" ${dt === salesDate ? "selected" : ""}>${ds(dt)}</option>`).join("")}</select></label>Güncel stok listesi henüz bağlı değil. Aşağıdaki stok kartları örnek / elle girilen stoklardır.</div>`,
+    stats: [
+      { head: "Seçilen günün cirosu", value: money(d.total), trend: ds(salesDate) + " · TOPLAM alanı" },
+      { head: "Satılan miktar", value: fmt(d.qty), trend: "Hesap / negatif işlemler hariç · karışık birim" },
+      {
+        head: "Rapordaki ürün",
+        value: fmt(Object.keys(salesData.products).length),
+        trend: "Talep serisine alınan barkodlar",
+      },
+      {
+        head: "Kritik stok · ayrı liste",
+        value: lowStock().length + " ürün",
+        trend: "Satış raporundan hesaplanmadı",
+        danger: true,
+      },
+    ],
+    chartPanel: `<section class="card panel"><div class="paneltop"><h2>Satışların seyri</h2><span class="muted">Son 14 kayıtlı gün</span></div>${realChart()}<div class="legend">Gerçek günlük ciro · TL</div><div class="insight">${fmt(st.rows)} satır · ${st.hesap} Hesap kaydı · ${st.negative} negatif satır · ${st.duplicate} birebir benzer satır (korundu)</div></section>`,
+    sidePanel: `<section class="card panel assistant"><div class="paneltop"><h2>Veri kontrolü</h2><span class="agentBadge">Ön deneme</span></div><p>Gerçek satış raporu yüklü. Güncel stok verisi ve otomatik bildirim servisi henüz bağlı değil.</p><div class="insight"><h3>Ekmek tahminini test edin</h3><p>Son 56 kayıtlı gündeki tahminleri gerçekleşen satışlarla karşılaştırabilirsiniz.</p><button class="primary" onclick="navigate('forecast')">Tahmin denemesini aç</button></div></section>`,
+    stockTitle: "Stok listesi · örnek / elle girilen",
+    stockSubtitle: "Geçmiş satış raporu güncel stok miktarını vermez.",
+    after: topSellers(true),
+  };
+}
+
+// ---------- Backtest trial (forecasts page, report source) ----------
 function backtestProduct(b) {
   let pr = salesData.products[b],
     dates = Object.keys(salesData.days).sort(),
@@ -202,13 +216,7 @@ function backtestProduct(b) {
     fallbacks,
   };
 }
-const beforeRealForecastTable = forecastTable;
-forecastTable = function () {
-  if (!salesData) beforeRealForecastTable();
-};
-const beforeRealForecast = forecasts;
-forecasts = function () {
-  if (!salesData) return beforeRealForecast();
+function trialView() {
   if (!Object.keys(salesData.products).length)
     return (
       title("Gerçek veriyle tahmin denemesi", "Geçmişi tahmin edin, sonucu gerçek satışla karşılaştırın.") +
@@ -217,9 +225,13 @@ forecasts = function () {
   let options = Object.values(salesData.products).sort((a, b) => a.name.localeCompare(b.name, "tr"));
   return (
     title("Gerçek veriyle tahmin denemesi", "Geçmişi tahmin edin, sonucu gerçek satışla karşılaştırın.") +
-    `<div class="note">Bu ilk denemede XGBoost çalışmıyor. Karşılaştırma yöntemi: aynı haftanın gününe ait son 8 kayıtlı günün ortalaması. Tahmin edilen günün ve sonrasının satışları o tahminde kullanılmaz.</div><section class="card panel"><label class="field">Ürün<select aria-label="Test edilecek ürün" onchange="trialProduct=this.value;renderTrial()">${options.map((p) => `<option value="${esc(p.barcode)}" ${p.barcode === trialProduct ? "selected" : ""}>${esc(p.name)} · ${esc(p.barcode)}</option>`).join("")}</select></label><div id="realTrial"></div></section>`
+    `<div class="note">Bu ilk denemede XGBoost çalışmıyor. Karşılaştırma yöntemi: aynı haftanın gününe ait son 8 kayıtlı günün ortalaması. Tahmin edilen günün ve sonrasının satışları o tahminde kullanılmaz.</div><section class="card panel"><label class="field">Ürün<select aria-label="Test edilecek ürün" onchange="setTrialProduct(this.value)">${options.map((p) => `<option value="${esc(p.barcode)}" ${p.barcode === trialProduct ? "selected" : ""}>${esc(p.name)} · ${esc(p.barcode)}</option>`).join("")}</select></label><div id="realTrial"></div></section>`
   );
-};
+}
+function setTrialProduct(b) {
+  trialProduct = b;
+  renderTrial();
+}
 function renderTrial() {
   let target = document.getElementById("realTrial");
   if (!target || !salesData?.products[trialProduct]) return;
@@ -231,40 +243,3 @@ function renderTrial() {
   let { outcomes, mae, wape, lastMAE, weekdayMAE, paired, total, fallbacks } = result;
   target.innerHTML = `<p class="muted">Test: ${ds(outcomes[0].date)}–${ds(outcomes.at(-1).date)} · ${outcomes.length} kayıtlı gün · gerçekleşen toplam miktar: ${fmt(total)}</p><div class="stats" style="grid-template-columns:repeat(auto-fit,minmax(140px,1fr));margin-top:18px"><div class="stat card"><p class="muted">Ortalama mutlak hata · MAE</p><div class="value">${fmt(mae)}</div><p class="muted">Ürünün rapor birimi / gün</p></div><div class="stat card"><p class="muted">Ağırlıklı mutlak yüzde hata</p><div class="value">${wape === null ? "—" : "%" + fmt(wape)}</div><p class="muted">${wape === null ? "Gerçekleşen toplam sıfır; tanımsız." : "WAPE · düşük olması daha iyi"}</p></div><div class="stat card"><p class="muted">Geçen haftayı tekrarla · MAE</p><div class="value">${lastMAE === null ? "—" : fmt(lastMAE)}</div><p class="muted">Ortak ${paired} gün; ortalama yönteminin MAE’si ${weekdayMAE === null ? "—" : fmt(weekdayMAE)}</p></div></div>${fallbacks ? `<p class="muted">${fallbacks} test gününde aynı haftanın gününe ait önceki kayıt yoktu; bu günlerde son 8 kayıtlı günün ortalaması (o da yoksa 0) kullanıldı.</p>` : ""}<p class="muted">Veri olmayan takvim günleri test edilmedi. Ürünün bulunmadığı kayıtlı günler bu ön denemede sıfır kabul edildi; ürünün satışta olup olmadığı ve stok tükenmeleri doğrulanmalı. Hesap ve negatif işlemler talep serisinden çıkarıldı; benzer satırlar korunuyor.</p><div class="tablewrap" style="max-height:360px;overflow:auto;margin-top:18px"><table><thead><tr><th>Tarih</th><th>Gerçek</th><th>Ortalama tahmini</th><th>Mutlak hata</th><th>Geçen hafta</th></tr></thead><tbody>${outcomes.map((r) => `<tr><td>${ds(r.date)}</td><td>${fmt(r.actual)}</td><td>${fmt(r.pred)}</td><td>${fmt(Math.abs(r.actual - r.pred))}</td><td>${r.last === null ? "—" : fmt(r.last)}</td></tr>`).join("")}</tbody></table></div><p class="muted">Bu sonuçlar gelecek tahmin başarısı garantisi veya doğruluk yüzdesi değildir. İleri tarihli tahminler ve eğitilmiş ML modeli henüz bağlı değil.</p>`;
 }
-const beforeRealRender = render;
-render = function () {
-  beforeRealRender();
-  if (!salesData) return;
-  document.querySelector(".demo").textContent = "Gerçek satış · stok ayrı";
-  if (page === "Genel bakış") {
-    let d = salesData.days[salesDate],
-      cards = document.querySelectorAll(".stats .stat");
-    cards[0].querySelector(".stathead").textContent = "Seçilen günün cirosu";
-    cards[0].querySelector(".value").textContent = money(d.total);
-    cards[0].querySelector(".trend").textContent = ds(salesDate) + " · TOPLAM alanı";
-    cards[1].querySelector(".stathead").textContent = "Satılan miktar";
-    cards[1].querySelector(".value").textContent = fmt(d.qty);
-    cards[1].querySelector(".trend").textContent = "Hesap / negatif işlemler hariç · karışık birim";
-    cards[2].querySelector(".stathead").textContent = "Rapordaki ürün";
-    cards[2].querySelector(".value").textContent = fmt(Object.keys(salesData.products).length);
-    cards[2].querySelector(".trend").textContent = "Talep serisine alınan barkodlar";
-    cards[3].querySelector(".stathead").textContent = "Kritik stok · ayrı liste";
-    cards[3].querySelector(".trend").textContent = "Satış raporundan hesaplanmadı";
-    let chart = document.querySelector(".chart");
-    chart.outerHTML = realChart();
-    let panel = document.querySelector(".grid .panel");
-    panel.querySelector(".paneltop").innerHTML =
-      '<h2>Satışların seyri</h2><span class="muted">Son 14 kayıtlı gün</span>';
-    panel.querySelector(".legend").textContent = "Gerçek günlük ciro · TL";
-    panel.querySelector(".insight").textContent =
-      `${fmt(salesData.stats.rows)} satır · ${salesData.stats.hesap} Hesap kaydı · ${salesData.stats.negative} negatif satır · ${salesData.stats.duplicate} birebir benzer satır (korundu)`;
-    let agent = document.querySelector(".assistant");
-    agent.innerHTML =
-      '<div class="paneltop"><h2>Veri kontrolü</h2><span class="agentBadge">Ön deneme</span></div><p>Gerçek satış raporu yüklü. Güncel stok verisi ve otomatik bildirim servisi henüz bağlı değil.</p><div class="insight"><h3>Ekmek tahminini test edin</h3><p>Son 56 kayıtlı gündeki tahminleri gerçekleşen satışlarla karşılaştırabilirsiniz.</p><button class="primary" onclick="navigate(\'Tahminler\')">Tahmin denemesini aç</button></div>';
-    document.querySelector(".bottom h2").textContent = "Stok listesi · örnek / elle girilen";
-    document.querySelector(".bottom .muted").textContent =
-      "Geçmiş satış raporu güncel stok miktarını vermez.";
-  }
-  if (page === "Tahminler") renderTrial();
-};
-restoreSales();
