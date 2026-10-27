@@ -1,0 +1,18 @@
+{
+  "name": "dukkan-talep-tahmini",
+  "private": true,
+  "type": "commonjs",
+  "description": "Tarayıcıda çalışan dükkan satış, stok ve talep tahmini prototipi.",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "test": "node --test \"test/**/*.test.js\"",
+    "test:unit": "node --test \"test/unit/**/*.test.js\"",
+    "test:smoke": "node test/smoke/run.js",
+    "format": "prettier --print-width 110 --write \"*.{js,css,html}\" test"
+  },
+  "devDependencies": {
+    "prettier": "3.3.3"
+  }
+}

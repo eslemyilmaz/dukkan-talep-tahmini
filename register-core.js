@@ -4,7 +4,8 @@
   function cents(value) {
     let n = Number(value);
     if (!Number.isFinite(n) || n < 0 || n > 1e9) throw Error("Geçerli bir tutar girin.");
-    return Math.round((n + Number.EPSILON) * 100);
+    // toPrecision(15) drops binary noise (5.015 * 100 = 501.49999...) so half-kuruş rounds up consistently.
+    return Math.round(Number((n * 100).toPrecision(15)));
   }
   function balance(s, id) {
     return s.entries.reduce(
@@ -17,8 +18,8 @@
   }
   function commit(state, request) {
     let s = clone(state);
-    if (s.entries.some((e) => e.id === request.id)) throw Error("Bu işlem daha önce kaydedildi.");
     if (!request.id) throw Error("İşlem kimliği eksik.");
+    if (s.entries.some((e) => e.id === request.id)) throw Error("Bu işlem daha önce kaydedildi.");
     if (request.kind === "collection") {
       if (!s.customers.some((c) => c.id === request.customerId)) throw Error("Müşteri bulunamadı.");
       if (!["cash", "card"].includes(request.payment)) throw Error("Tahsilat türünü seçin.");
@@ -82,8 +83,10 @@
           cost: cost === null ? null : cost * row.q,
         };
       });
-    let total = items.reduce((a, p) => a + p.total, 0);
-    if (!Number.isSafeInteger(total)) throw Error("İşlem tutarı sınırı aşıldı.");
+    let total = items.reduce((a, p) => a + p.total, 0),
+      cost = items.every((p) => p.cost !== null) ? items.reduce((a, p) => a + p.cost, 0) : null;
+    if (!Number.isSafeInteger(total) || (cost !== null && !Number.isSafeInteger(cost)))
+      throw Error("İşlem tutarı sınırı aşıldı.");
     s.entries.push({
       id: request.id,
       number: s.nextNumber++,
@@ -97,7 +100,7 @@
       time: request.time,
       items,
       total,
-      cost: items.every((p) => p.cost !== null) ? items.reduce((a, p) => a + p.cost, 0) : null,
+      cost,
     });
     s.rev++;
     return s;
@@ -111,9 +114,11 @@
     sales.forEach((t) =>
       t.items.forEach((p) => {
         let k = p.id;
-        let it = items[k] || (items[k] = { ...p, q: 0, total: 0 });
+        let it = items[k] || (items[k] = { ...p, q: 0, total: 0, cost: 0 });
         it.q += p.q;
         it.total += p.total;
+        // Cost is known only while every contributing line carries one (same rule as entries[].cost).
+        it.cost = it.cost === null || p.cost === null || p.cost === undefined ? null : it.cost + p.cost;
       }),
     );
     return {
