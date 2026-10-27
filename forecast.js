@@ -235,18 +235,22 @@ function suggestedOrder(stock, onHand) {
   return round3(Math.max(0, Math.ceil(need / pack - 1e-9)) * pack);
 }
 // Matched by barcode text (leading zeros kept). Read at render time: the product list may be replaced.
+// A product without a barcode is exported to the model as "app:<id>" (see reports.js); match that too.
+function modelKey(p) {
+  return p.barcode ? String(p.barcode) : "app:" + p.id;
+}
 function tahminRows() {
-  let byBarcode = new Map();
-  for (let p of products)
-    if (p.barcode && !byBarcode.has(String(p.barcode))) byBarcode.set(String(p.barcode), p);
+  let byKey = new Map();
+  for (let p of products) if (!byKey.has(modelKey(p))) byKey.set(modelKey(p), p);
   return tahmin.data.products.map((f) => {
-    let p = byBarcode.get(f.barcode) || null;
+    let p = byKey.get(f.barcode) || null;
     return { f, p, order: p ? suggestedOrder(f.stock, p.stock) : null };
   });
 }
 function tahminFor(p) {
-  if (!tahmin || !p.barcode) return null;
-  let f = tahmin.data.products.find((x) => x.barcode === String(p.barcode));
+  if (!tahmin) return null;
+  let key = modelKey(p),
+    f = tahmin.data.products.find((x) => x.barcode === key);
   return f ? { order: suggestedOrder(f.stock, p.stock), target: f.stock.order_up_to } : null;
 }
 // Stock page line under a matched product; "" when there is no forecast for it.
@@ -371,7 +375,7 @@ function tahminView() {
     })
     .join("");
   let table = `<section class="card panel bottom"><div class="paneltop"><div><h2>Sipariş önerisi</h2><p class="muted">Önerilen sipariş = hedef stok − mevcut stok, sıfırın altına inmez, paket boyuna yukarı yuvarlanır. Mevcut stok bu cihazdaki kayıttır; yoldaki sipariş ve ayrılmış stok hesaba katılmaz.</p></div><select id="tahminSort" aria-label="Sıralama" onchange="setTahminSort(this.value)"><option value="order" ${tahminSort === "order" ? "selected" : ""}>Siparişe göre</option><option value="name" ${tahminSort === "name" ? "selected" : ""}>Ada göre</option></select></div><div class="tablewrap" tabindex="0" aria-label="Model tahmini ve sipariş önerisi tablosu"><table id="tahminTable"><thead><tr><th>Ürün</th><th class="optCol">Birim</th><th class="optCol">Grup</th><th>Haftalık tahmin</th><th>Aylık tahmin</th><th>Mevcut stok</th><th>Hedef stok</th><th>Önerilen sipariş</th>${anyFlags ? "<th>İşaretler</th>" : ""}</tr></thead><tbody>${body}</tbody></table></div><p class="muted" style="margin-top:14px">Tahmine dokunarak XGBoost ve mevsimsel saf tahmini ile birleşimdeki XGBoost payını görebilirsiniz. Haftalık: ${span(d.horizons.weekly)}; aylık: ${span(d.horizons.monthly)}. Sipariş kararı sizindir.</p></section>`;
-  let lists = `<div class="twocol bottom"><section class="card panel" id="tahminAppOnly"><h2>Modelde karşılığı yok <span class="muted">· ${appOnly.length}</span></h2><p class="subtitle">Uygulamadaki bu ürünlerin barkodu tahmin dosyasında yok ya da ürüne barkod tanımlanmamış.</p>${appOnly.length ? `<ul class="plainList">${appOnly.map((p) => `<li><strong>${esc(p.name)}</strong> <span class="muted">${p.barcode ? esc(p.barcode) : "barkodsuz"}</span></li>`).join("")}</ul>` : '<p class="muted">Bütün ürünlerin model tahmini var.</p>'}</section><section class="card panel" id="tahminFileOnly"><h2>Uygulamada tanımlı değil <span class="muted">· ${fileOnly.length}</span></h2><p class="subtitle">Tahmin dosyasındaki bu barkodlar uygulamada kayıtlı değil. Ürün olarak eklerseniz sipariş önerisi hesaplanır.</p>${fileOnly.length ? `<ul class="plainList">${fileOnly.map(({ f }) => `<li><span class="listName"><strong>${esc(f.name)}</strong> <span class="muted">${esc(f.barcode)}</span></span><button class="smallbtn" data-barcode="${esc(f.barcode)}" onclick="addProduct(this.dataset.barcode)">Ürün olarak ekle</button></li>`).join("")}</ul>` : '<p class="muted">Dosyadaki bütün ürünler uygulamada kayıtlı.</p>'}</section></div>`;
+  let lists = `<div class="twocol bottom"><section class="card panel" id="tahminAppOnly"><h2>Modelde karşılığı yok <span class="muted">· ${appOnly.length}</span></h2><p class="subtitle">Uygulamadaki bu ürünlerin barkodu tahmin dosyasında yok ya da ürüne barkod tanımlanmamış.</p>${appOnly.length ? `<ul class="plainList">${appOnly.map((p) => `<li><strong>${esc(p.name)}</strong> <span class="muted">${p.barcode ? esc(p.barcode) : "barkodsuz · dışa aktarımda app:" + esc(p.id)}</span></li>`).join("")}</ul>` : '<p class="muted">Bütün ürünlerin model tahmini var.</p>'}</section><section class="card panel" id="tahminFileOnly"><h2>Uygulamada tanımlı değil <span class="muted">· ${fileOnly.length}</span></h2><p class="subtitle">Tahmin dosyasındaki bu barkodlar uygulamada kayıtlı değil. Ürün olarak eklerseniz sipariş önerisi hesaplanır.</p>${fileOnly.length ? `<ul class="plainList">${fileOnly.map(({ f }) => `<li><span class="listName"><strong>${esc(f.name)}</strong> <span class="muted">${esc(f.barcode)}</span></span><button class="smallbtn" data-barcode="${esc(f.barcode)}" onclick="addProduct(this.dataset.barcode)">Ürün olarak ekle</button></li>`).join("")}</ul>` : '<p class="muted">Dosyadaki bütün ürünler uygulamada kayıtlı.</p>'}</section></div>`;
   return (
     title(
       "Model tahminleri",
